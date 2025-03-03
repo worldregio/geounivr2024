@@ -1,0 +1,464 @@
+---
+title: "[STA2A] : Statistique bivariée : X et Y qualitatives"
+subtitle: "GEO UNIV'R Tunisie 2024"
+author: "Claude Grasland"
+date: "2024-05-13"
+date-format: iso
+lang: fr
+format:
+  html:
+    embed-resources: true
+    smooth-scroll: true
+    fontsize: 0.9em
+    toc: true
+    toc-depth: 3
+    toc-title: "."
+    bibliography: [bib.bib]
+    crossrefs-hover: false
+    css: custom.css
+    theme: [yeti, style.scss]
+execute:
+  warning: false
+  message: false 
+knitr:
+  opts_chunk:
+    out.width: "100%"
+editor_options: 
+  chunk_output_type: console
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+
+```{r, echo=FALSE}
+library(knitr)
+library(questionr)
+```
+
+
+
+
+
+# PREPARATION DES DONNEES
+
+Nous allons importer un fichier de données portant sur les revenus de 17000 ménages tunisiens en 2021. Il est tiré de l'enquête consommation et revenu de l'INS que l'on peut télécharger librement en [cliquant ici](https://www.ins.tn/enquetes/enquete-nationale-sur-le-budget-la-consommation-et-le-niveau-de-vie-des-menages-2021)
+
+## Importation des données
+
+On commence par charger les données contenues dans le fichier  *enq_INS_conso_menages_2021.RDS* à l'aide de la fonction `readRDS()` qui permet de lire les fichiers sauvegardés sans le format interne de R et on affiche les 6 premières lignes
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+# Importe les données au format interne de R
+base<-readRDS("data/ENQ-TUN-2021/enq_INS_conso_menages_2021.RDS")  
+```
+
+
+## Liste des variables
+
+On a légèrement changé le fichier initial de l'INS en simplifiant les noms des variables et en fusionnant certaines modalités. Les variables proposées sont les suivantes :
+
+- id : identifiant du ménages de 1 à 17114
+
+- reg : région de résidence (NE, NO, CE, CO, SE, SO + Grand Tunis)
+- mil : milieu de résidence (urbain ou rural)
+
+- sex : sexe du chef de ménage
+- age : age du chef de ménage
+- mat : situation matrimoniale (célbataire, marié, veuf, divorcé)
+- ins : instruction du chef de ménage (aucune, primaire, secondaire, supérieur)
+- csp : catégorie socio professionnelle du chef de ménage (simplifiée)
+- nbp : nombre de personnes composant le ménage
+- pauv: situation de pauvreté selon les critères de l'INS (Oui/Non)
+- rev : revenu moyen par personnes en DT / an
+
+
+## Selection du tableau à analyser
+
+On suppose qu'on ne s'intéresse qu'à quelques variables de type qualitatif.
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+don<-base[,c("reg","mil","sex","ins","pvr")]
+head(don)
+```
+
+## Recodage de la variable pvr
+
+La variable pvr exprime sous forme logique le fait qu'un ménage soit riche ou pauvre. Elle a été créée par l'INS en tenant compte du revenu, du nombre de personnes mais aussi de la région et du milieu rural ou urbain. Un revenu de 1000 Dt n'aura en effet pas le même effet selon qu'on habite à Tunis ou Sidi Bouzid.
+
+On décide de la recoder en "Pauvre", "Non Pauvre".
+
+```{r}
+# Transforme du type logic au type factor
+don$pvr<-as.factor(don$pvr)
+
+# Examine les étiquettes
+table(don$pvr)
+
+# Change les étiquettes 
+levels(don$pvr)<-c("Non pauvre","Pauvre")
+
+# Examine les nouvelles étiquettes
+table(don$pvr)
+```
+
+
+
+## Résumé rapide
+
+On effectue un résumé rapide du tableau à l'aide de la fonction `summary()`:
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 0.8em'"
+#| echo: true
+summary(don)
+```
+
+# TABLEAU DE CONTINGENCE
+
+## Création 
+
+Le coeur du travail d'analyse du questionnaire est la réalisation de **tris croisés** c'est-à-dire de **tableaux de contingence** croisant les réponses à deux questions (X et Y). Prenons comme exemple la pauvreté du ménage (*pvr*) définie par l'INS comme une variable binaire (Y) et le niveau d'instruction (*ins*) du chef de ménage (X) en quatre classes. 
+
+### tableau de contingence 
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+
+X<-don$ins
+Y<-don$pvr
+tab<-table(X,Y)
+addmargins(tab)
+```
+
+**Exemple de lecture** : **644 ménages** ont un chef sans diplôme et sont pauvres.
+
+## Pourcentage en ligne 
+
+Le tableau de contingence permet de produire différents tableaux de pourcentage.
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+
+
+lprop(tab)
+```
+
+**Exemple de lecture** : **17.2%** des ménages dont le chef n'a pas de diplôme sont pauvres 
+
+## pourcentage en colonnes
+
+Le tableau de contingence permet de produire différents tableaux de pourcentage.
+
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+
+cprop(tab)
+```
+
+
+**Exemple de lecture** : **26.3%** des ménages pauvres ont pour chef une personne non diplômée
+
+
+## pourcentage du total
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+
+prop(tab)
+```
+
+
+**Exemple de lecture** : **3.8%** des ménages sont pauvres et ont pour chef une personne non diplômée
+
+
+# VISUALISATION 
+
+## Utilisation de mosaicplot
+
+Il est facile de visualiser un tableau de contingence avec mosaicplot()
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+mosaicplot(tab)
+```
+
+Cette figure est très pratique car elle montre à la fois l'effectif des ménages par diplôme (largeur de la barre) et la proportion de ménages pauvres (hauteur à laquelle la barre est coupée)
+
+## figure améliorée
+
+On peut ensuite améliorer le figure
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+
+mosaicplot(tab,
+           xlab = "Diplôme du chef de ménage",
+           ylab = "Pauvreté",
+           main = "Relation entre diplome et pauvreté en Tunisie en 2021",
+           sub = "Source : INS, 2021",
+           col=c("lightyellow", "orange"))
+```
+
+
+
+# TEST DU CHI-2
+
+
+## Hypothèse de recherche
+
+On remarque qu'il semble exister un lien entre le niveau de diplôme du chef de ménage. Cette relation semble négative puisque les ménages les moins instruits sont ceux qui sont le plus souvent pauvre. On a donc envie d'affirmer l'hypothèse de recherche H1 :
+
+
+**H1: Dans le cas de la population tunisienne en 2021, il existe un lien entre le niveau de diplôme du chef de ménage (X) et la situation de pauvreté (Y).**
+
+En statistique, on ne teste jamais directement l'hypothèse H1 (*il y a une relation entre X et Y*) mais on teste l'hypothèse inverse (*il n'y a pas de relation entre X et Y*) qu'on appelle **hypothèse nulle**.
+
+## Hypothèse nulle
+
+ Pourquoi cette complication apparente ?
+
+- Parce que l'hypothèse nulle est plus rigoureuse et revient à **se demander si ce n'est pas le hasard qui explique les différence de pourcentage observées**.  Dans notre exemple on va donc poser :
+
+**H0 : Il n'y a pas de relation entre le niveau de diplôme  (X) et le fait d'être pauvre (Y).** Les différences de pourcentage que nous avons mises en évidence peuvent très bien être l'effet du hasard. 
+
+## La fonction chisq.test()
+
+Cette fonction très puissance s'applique à un tableau de contingence créé avec la fonction `table()`. Elle renvoie un gros objet que l'on va **stocker** pour en extraire les résultats dont on a besoin. On peut choisir le nom de l'objet dans lequel seront stockés les résultats. Ici je vais choisir le nom *resul* mais j'aurais aussi bien pu l'appeler *toto* ou *titi*.
+
+```{r}
+resul<-chisq.test(tab)
+class(resul)
+```
+
+L'instruction `class()` nousindique que l'objet a un type spécial appelé htest. Il s'agit en fait d'une **liste** de résultats, comme un gros sac de course remplis de fruits, légumes, pain, etc.
+
+Qu'y a-t-il dans l'objet resul ?
+
+```{r}
+str(resul)
+```
+
+Plein de choses ...
+
+## Distribution observée
+
+On retrouve dans l'objet resul notre tableau de contingence initial
+
+### Nij = effectifs observés
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+
+tabobs <- resul$observed
+addmargins(tabobs)
+```
+
+
+
+## Distribution théorique
+
+Afin de voir si le hasard est effectivement intervenu, on va reconstituer ce que serait le tableau de contingence croisant X et Y dans le cas où les deux variables ne sont pas reliées. On extrait cette information de l'objet resul la partie appelée *expected*.
+
+### Tij = (Ni. x N.j)/N..
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+
+tabtheo <- resul$expected
+round(addmargins(tabtheo),1)
+```
+
+
+## Résidus
+
+On va ensuite mesurer les écarts entre effectifs observés et théoriques appelés résidus **(Nij-Tij)**. 
+
+### Résidus (Nij-Tij) 
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+tabresid <- tabobs-tabtheo
+round(addmargins(tabresid),1)
+```
+
+
+## Chi-2
+
+On va ensuite exprimer les écartes entre effectifs observés et estimés sous une forme mathématique appelée chi2 définie par la formule **(Nij-Tij)x(Nij-Tij)/Tij**. Ce résultat n'est pas fourni mais on peut le calculer : 
+
+###  Chi-2 = (Nij-Tij)x(Nij-Tij)/Tij
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+
+tabchi2<-(tabobs-tabtheo)**2 / tabtheo
+round(addmargins(tabchi2),1)
+```
+
+Ce qui nous intéresse c'est la somme du chi2 de toutes les cases qui mesure la différence entre les distributions observées et théoriques. **Plus le chi2 total est grand, plus il y a de chance qu'il existe une relation entre X et Y**.
+
+## test du chi-2
+
+On peut calculer beaucoup plus rapidement le chi-2 total d'un tableau et sa significativité en utilisant la fonction `chisq.test()` sans la stocker : 
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+
+chisq.test(tab)
+
+```
+
+
+On obtient directement la valeur du chi-2 du tableau (**X-squared = 267.94**) ainsi que le nombre de degrés de libertés (**df = 3**) et la significativité de la relation (**p-value < 2.2e-16**)
+
+## Interprétation du résultat du test
+
+Le **chi-2 total du tableau (267.9)** sera d'autant plus élevé que la distribution observée s'éloigne de la distribution théorique. Plus le chi-2 augmente, moins il y a de chance que le hasard explique les différences entre valeurs observées et estimées. On peut alors **faire un test pour connaître la probabilité que le chi-2 observé soit l'effet du hasard.** 
+
+- le tableau possède **3 degré de liberté** =  (lignes - 1) x (colonnes - 1)
+- le tableau possède un **chi-2 égal à 267.9**
+- Un calcul effectué par un logiciel de statistique montre que la probabilité que cette valeur soit l'effet du hasard **(p-value)** est presque nulle **p <0.0001**
+
+On va donc **rejeter H0** et **accepter H1**    
+   
+**Conclusion : On peut affirmer sans grand risque d'erreur (1 chance sur 10 000) qu'en Tunisie en 2021 il existe une relation significative entre le niveau de diplôme du chef de ménage et la situation de pauvreté**  
+
+## Seuils de décision
+
+Dans l'exemple précédent, nous sommes tombé sur une relation très significative. Mais ce n'est pas toujours le cas. Pour fixer les ordres de grandeur, voici un tableau simple à retenir :
+
+
+```{r, echo=F}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: false
+p<-c("> 0.10", "0.05 à 0.10", "0.01 à 0.05", "0.001 à 0.01", "0.001 <")
+s<-c("Non significatif", "Presque significatif", "légèrement significatif", "significatif", "très significatif")
+c<-c("n.s", ".", "*","**","***")
+
+mytab<-data.frame("Test (p-value)"=p,"Interprétation"=s,"code"=c)
+kable(mytab)
+```
+
+La taille de l'échantillon influence beaucoup le résultat du test du chi-2. Plus l'échantillon est grand, plus on a de chances de rejeter H0. ici nous avions 17000 personnes ce qui est considérable pourune enquête.
+
+Mais qu'aurions nous observée si nous n'avions eu que 50, 100 ou 200 personnes ? 
+
+
+
+## Taille de l'échantillon (n=50)
+
+
+::: columns
+::: {.column width="40%"}
+```{r, echo=F}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+set.seed(42)
+sel<-don[sample(nrow(don),50),]
+tab<-table(sel$ins,sel$pvr)
+kable(addmargins(tab), caption = "Effectif")
+kable(lprop(tab), caption = "% en ligne", digits=1)
+
+```
+:::
+
+::: {.column width="60%"}
+```{r, echo=FALSE}
+#| attr-output: "style='font-size: 1em'"
+mosaicplot(tab, xlab = "Diplôme du chef de ménage", ylab = "Pauvreté",
+           main = "N = 50", col=c("lightyellow", "orange"))
+
+chisq.test(tab)
+```
+:::
+:::
+
+
+## Taille de l'échantillon (n=100)
+
+
+::: columns
+::: {.column width="40%"}
+```{r, echo=F}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+set.seed(42)
+sel<-don[sample(nrow(don),100),]
+tab<-table(sel$ins,sel$pvr)
+kable(addmargins(tab), caption = "Effectif")
+kable(lprop(tab), caption = "% en ligne", digits=1)
+
+```
+:::
+
+::: {.column width="60%"}
+```{r, echo=FALSE}
+#| attr-output: "style='font-size: 1em'"
+mosaicplot(tab, xlab = "Diplôme du chef de ménage", ylab = "Pauvreté",
+           main = "N = 100", col=c("lightyellow", "orange"))
+
+chisq.test(tab)
+```
+:::
+:::
+
+
+## Taille de l'échantillon (n=200)
+
+
+
+::: columns
+::: {.column width="40%"}
+```{r, echo=F}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+set.seed(42)
+sel<-don[sample(nrow(don),200),]
+tab<-table(sel$ins,sel$pvr)
+kable(addmargins(tab), caption = "Effectif")
+kable(lprop(tab), caption = "% en ligne", digits=1)
+
+```
+:::
+
+::: {.column width="60%"}
+```{r, echo=FALSE}
+#| attr-output: "style='font-size: 1em'"
+mosaicplot(tab, xlab = "Diplôme du chef de ménage", ylab = "Pauvreté",
+           main = "N = 200", col=c("lightyellow", "orange"))
+
+chisq.test(tab)
+```
+:::
+:::
+
+# A VOUS DE JOUER
+
+Construisez une hypothèse de votre choix croisant deux variables qualitatives et testez-là. 
+

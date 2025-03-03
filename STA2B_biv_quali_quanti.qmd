@@ -1,0 +1,321 @@
+---
+title: "[STA2B] : Statistique bivariée : Y qualitative et X quantitative"
+subtitle: "GEO UNIV'R Tunisie 2024"
+author: "Claude Grasland"
+date: "2024-05-13"
+date-format: iso
+lang: fr
+format:
+  html:
+    embed-resources: true
+    smooth-scroll: true
+    fontsize: 0.9em
+    toc: true
+    toc-depth: 3
+    toc-title: "."
+    bibliography: [bib.bib]
+    crossrefs-hover: false
+    css: custom.css
+    theme: [yeti, style.scss]
+execute:
+  warning: false
+  message: false 
+knitr:
+  opts_chunk:
+    out.width: "100%"
+editor_options: 
+  chunk_output_type: console
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+
+
+# (1) PREPARATION DES DONNEES
+
+Nous allons importer un fichier de données portant sur les revenus de 17000 ménages tunisiens en 2021. Il est tiré de l'enquête consommation et revenu de l'INS que l'on peut télécharger librement en [cliquant ici](https://www.ins.tn/enquetes/enquete-nationale-sur-le-budget-la-consommation-et-le-niveau-de-vie-des-menages-2021)
+
+## Importation des données
+
+On commence par charger les données contenues dans le fichier  *enq_INS_conso_menages_2021.RDS* à l'aide de la fonction `readRDS()`. On tape ensuite la commande `str()`pour connaître les caractéristiques de l'objet.
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 0.7em'"
+#| echo: true
+
+# Importe les données au format interne de R
+base<-readRDS("data/ENQ-TUN-2021/enq_INS_conso_menages_2021.RDS")
+str(base)
+```
+
+
+## Liste des variables
+
+On a légèrement changé le fichier initial de l'INS en simplifiant les noms des variables et en fusionnant certaines modalités. Les variables proposées sont les suivantes :
+
+- id : identifiant du ménages de 1 à 17114
+
+- reg : région de résidence (NE, NO, CE, CO, SE, SO + Grand Tunis)
+- mil : milieu de résidence (urbain ou rural)
+
+- sex : sexe du chef de ménage
+- age : age du chef de ménage
+- mat : situation matrimoniale (célbataire, marié, veuf, divorcé)
+- ins : instruction du chef de ménage (aucune, primaire, secondaire, supérieur)
+- csp : catégorie socio professionnelle du chef de ménage (simplifiée)
+- nbp : nombre de personnes composant le ménage
+- pauv: situation de pauvreté selon les critères de l'INS (Oui/Non)
+- rev : revenu moyen par personnes en DT / an
+
+
+## Selection du tableau à analyser
+
+On suppose qu'on ne s'intéresse qu'à quelques variables
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+don<-base[,c("reg","mil","sex", "age","ins","rev")]
+head(don)
+```
+
+
+## Résumé rapide
+
+On effectue un résumé rapide du tableau à l'aide de la fonction `summary()`:
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 0.8em'"
+summary(don)
+```
+
+
+On retient comme variable Y quantitative le **revenu moyen annuel par personne du ménage**. Par exemple si le revenu annuel est de 10000 DT et que ce ménage comporte 4 personnes, alors le revenu moyen annuel par personne sera de 2500 DT.
+
+
+# 2. ANALYSE DE LA VARIABLE Y
+
+Pour procéder à des tests statistiques paramétriques, il faut s'assurer que la variable quantitative Y est si possible normale (gaussienne) ou, au minimum unimodale et symétrique. 
+
+## 2.1 La distribution de Y est-elle normale ?
+
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+mybreaks <- quantile(don$rev,0:10/10)
+par(mfrow=c(1,2))
+hist(don$rev,
+     breaks = mybreaks,
+     col="lightyellow",
+     probability = TRUE)
+lines(density(don$rev,bw=1000),col="red",lwd=1)
+boxplot(don$rev, col="lightyellow",horizontal = T)
+```
+
+
+La distribution ne semble pas du tout normale. Elle est très asymétrique et il y a des valeurs très exceptionnelles.
+
+
+
+## 2.2 Elimination des valeurs exceptionnelles
+
+On va retirer les individus dont le revenu dépasse 20 000 DT et créer un fichier don2
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+don2<-don[don$rev<20000,]
+mybreaks <- quantile(don2$rev,0:10/10)
+par(mfrow=c(1,2))
+hist(don2$rev,
+     breaks = mybreaks,
+     col="lightyellow",
+     probability = TRUE)
+lines(density(don2$rev,bw=1000),col="red",lwd=1)
+boxplot(don2$rev, col="lightyellow",horizontal = T)
+
+```
+
+Il demeure beaucoup de valeurs exceptionnelles et la dissymétrie n'est pas totalement éliminée. On décide donc de descendre juqu'à 15000
+
+
+On va retirer les individus dont le revenu dépasse 10 000 DT et créer un fichier don3
+
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+don3<-don[don$rev<10000,]
+mybreaks <- quantile(don3$rev,0:10/10)
+par(mfrow=c(1,2))
+hist(don3$rev,
+     breaks = mybreaks,
+     col="lightyellow",
+     probability = TRUE)
+lines(density(don3$rev,bw=1000),col="red",lwd=1)
+boxplot(don3$rev, col="lightyellow",horizontal = T)
+
+```
+
+
+
+# 3. TEST D'EGALITE DES MOYENNES
+
+## 3.1 Hypothèses
+
+On considère une variable **Y quantitative continue** définie sur une population de réféence P  et une variable **X qualitative à deux modalités** divisant P en deux sous population P1 et P2. 
+
+Soit par exemple la variable Y = rev et la variable X = mil. On peut se demander si les revenus des ménages urbains sont plus ou moins élevés que ceux des ménages ruraux.
+
+
+```{r}
+
+Y<-don3$rev
+nomY <-"Revenu par personne"
+
+X<-don3$mil
+nomX <- "Milieu"
+
+
+```
+
+
+
+## 3.2 Visualisations
+
+Le plus simple est d'utiliser  **boxplot()** en version de base ...
+
+```{r}
+boxplot(Y~X)
+```
+
+
+
+... ou améliorée
+
+```{r}
+boxplot(Y~X,
+        horizontal=T, 
+        xlab = nomY, 
+        ylab=nomX, 
+        col="gray80")
+```
+
+
+
+
+## 3.3 Paramètres principaux 
+
+La fonction tapply() permet de calculer les paramètres statistiques de Y en fonction des modalités de X. 
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+moy<-tapply(Y,X, mean)
+ect<-tapply(Y,X,sd)
+cv<-100*ect/moy
+res<-cbind(moy,ect,cv)
+res
+```
+
+
+## 3.4 Test d'égalité des moyennes 
+
+### Test de student
+
+Le test de Student  permet de tester l'hypothèse d'égalité des moyennes entre deux échantillons. Il suppose que la distribution est gaussienne.
+
+```{r}
+#| attr-output: "style='font-size: 1em'"
+t.test(Y~X)
+```
+
+
+### Test de  Wilcoxon
+
+Le test de Wilcoxon permet également de tester l'hypothèse d'égalité des moyennes entre deux échantillons. Il ne suppose que la distribution est gaussienne car il travaille sur les rangs et non pas les valeurs. 
+
+```{r}
+#| attr-output: "style='font-size: 1em'"
+wilcox.test(Y~X)
+```
+
+
+# 4. ANALYSE DE VARIANCE 
+
+## Que faire lorsque X a plus de deux modalités ?
+
+Supposons que nous voulions maintenant examiner la relation entre revenu et niveau d'instruction. On une peut commencer par réaliser une boxplot comme précédemment :
+
+```{r}
+Y<-don3$rev
+nomY <-"Revenu par personne"
+X<-don3$ins
+nomX <- "Niveau d'instruction"
+
+boxplot(Y~X, horizontal=T)
+```
+
+
+
+On peut également construire un tableau de paramètres par modalités
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+moy<-tapply(Y,X, mean)
+ect<-tapply(Y,X, sd)
+cv=100*moy/ect
+
+param<-data.frame(moy,ect,cv)
+
+param
+
+```
+
+
+## Impossible d'utiliser le test d'égalité de deux moyennes
+
+Le test d'égalité des moyennes ne fonctionne que lorsque la variable qualitative Y n'a que deux modalités. On ne peut donc pas l'appliquer pour étudier la relation entre le revenu (Y) et le niveau d'instruction (X) car celui-ci comporte 4 modalités.
+
+Le programme suivant provoquera une erreur :
+
+```{r, eval = FALSE}
+t.test(Y~X)
+```
+
+Error in t.test.formula(Y ~ X) : 
+  grouping factor must have exactly 2 levels
+  
+  
+## Solution générale : l'analyse de variance
+
+```{r}
+#| attr-output: "style='font-size: 1em'"
+Y<-don3$rev
+modele <- lm(Y~X)
+summary(modele)
+```
+
+Cette méthode étant plus complexe on attendra le cours sur la modélisation pour la discuter plus en détail. 
+
+# A VOUS DE JOUER 
+
+## Sexe du chef de ménage et revenu
+
+Vous devez analyser l'existence d'une relation entre les variables revenu moyen annuel du ménage (Y) et sexe du chef de ménage (X). 
+
+Quelle est votre hypothèse H1 ?
+
+Quelle est votre hypothèse H0 ?
+
+![flouze](img/flouze.jpg)
+

@@ -1,0 +1,75 @@
+project:
+  type: website
+  output-dir: docs
+
+website:
+  title: "GeounivR 2024"
+  sidebar:
+    style: "docked"
+    search: true
+    collapse-level: 1
+    contents:
+      - href: index.qmd
+        text: "A propos"
+      - section: "INTRODUCTION"
+        contents:
+          - href: INT1_Pourquoi_R.html
+            text: "Pourquoi R ?"  
+          - href: INT2_Enseigne_R.qmd
+            text: "Enseigner avec R"
+          - href: INT3_Importe_R.html
+            text: "Importer des données dans R"  
+      - section: "CARTO-GEOMATIQUE"
+        contents:
+          - href: GEO1_vecteurs.qmd
+            text: "Carto. vecteurs " 
+          - href: GEO2_rasters.html
+            text: "Carto. rasters"
+          - href: https://neocarto.github.io/geounivr2024/VEN1_geoviz_intro/docs/index.html
+            text: "Carto. dynamique"            
+      - section: "STATISTIQUES"
+        contents:
+          - href: STA1_Univariee.qmd
+            text: "Univariée"
+          - href: STA2A_biv_quali_quali.qmd
+            text: "Bivariée : X et Y quali."        
+          - href: STA2B_biv_quali_quanti.qmd
+            text: "Bivariée : Y quanti. et X quali"             
+          - href: STA2C_biv_quanti_quanti.qmd
+            text: "Bivariée : X quanti. et Y quali"  
+          - href: STA3_multivariee.qmd
+            text: "Multivariée : ACP et CAH"   
+      - section: "MODELISATION"
+        contents:
+          - href: MOD1_Regression_lineaire.qmd
+            text: "Régression linéaire"    
+          - href: MOD2_Regression_non_lineaire.qmd
+            text: "Régression non linéaire" 
+          - href: MOD3_Regression_multiple.qmd
+            text: "Régression multiple" 
+          - href: MOD4_Analyse_de_variance.qmd
+            text: "Analyse de variance"
+      - section: "ANALYSE SPATIALE"
+        contents:
+          - href: SPA1_ResumeSemis.qmd
+            text: "Analyse d'un semis de points"  
+          - href: SPA2_DistAccess.qmd
+            text: "Distance et accessibilité" 
+          - href: SPA3_PointsSurfaces.qmd
+            text: "Des points aux surfaces" 
+    right: 
+      - icon: github # add icons as navbar buttons
+        href: https://github.com/worldregio/geounivR_2024
+        target: _blank
+  page-footer:
+    background: dark
+    left: Copyright 2025, FR CIST
+format:
+  html:
+    theme: 
+      light: minty    
+      dark: solar
+    css: styles.css
+    toc: true
+
+

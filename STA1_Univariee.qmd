@@ -1,0 +1,429 @@
+---
+title: "[STA1] : Statistiques univariée"
+subtitle: "GEO UNIV'R Tunisie 2024"
+author: "Claude Grasland"
+date: "2024-05-13"
+date-format: iso
+lang: fr
+format:
+  html:
+    embed-resources: true
+    smooth-scroll: true
+    fontsize: 0.9em
+    toc: true
+    toc-depth: 3
+    toc-title: "."
+    bibliography: [bib.bib]
+    crossrefs-hover: false
+    css: custom.css
+    theme: [yeti, style.scss]
+execute:
+  warning: false
+  message: false 
+knitr:
+  opts_chunk:
+    out.width: "100%"
+editor_options: 
+  chunk_output_type: console
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+
+```{r, echo=FALSE}
+library(knitr)
+```
+
+
+# 1 PREPARATION DES DONNEES
+
+Nous allons importer un fichier de données portant sur les revenus de 17000 ménages tunisiens en 2021. Il est tiré de l'enquête consommation et revenu de l'INS que l'on peut télécharger librement en [cliquant ici](https://www.ins.tn/enquetes/enquete-nationale-sur-le-budget-la-consommation-et-le-niveau-de-vie-des-menages-2021)
+
+## Importation des données
+
+On commence par charger les données contenues dans le fichier  *enq_INS_conso_menages_2021.RDS* à l'aide de la fonction `readRDS()` qui permet de lire les fichiers sauvegardés sans le format interne de R et on affiche les 6 premières lignes
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+
+
+# Importe les données au format interne de R
+base<-readRDS("data/ENQ-TUN-2021/enq_INS_conso_menages_2021.RDS")  
+head(base)
+```
+
+
+## Liste des variables
+
+On a légèrement changé le fichier initial de l'INS en simplifiant les noms des variables et en fusionnant certaines modalités. Les variables proposées sont les suivantes :
+
+- id : identifiant du ménages de 1 à 17114
+
+- reg : région de résidence (NE, NO, CE, CO, SE, SO + Grand Tunis)
+- mil : milieu de résidence (urbain ou rural)
+- sex : sexe du chef de ménage
+- age : age du chef de ménage
+- mat : situation matrimoniale (célbataire, marié, veuf, divorcé)
+- ins : instruction du chef de ménage (aucune, primaire, secondaire, supérieur)
+- csp : catégorie socio professionnelle du chef de ménage (simplifiée)
+- nbp : nombre de personnes composant le ménage
+- pauv: situation de pauvreté selon les critères de l'INS (Oui/Non)
+- rev : revenu moyen par personnes en DT / an
+
+
+## Selection du tableau à analyser
+
+On suppose qu'on ne s'intéresse qu'à quelques variables
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+
+don<-base[,c("reg","mil","sex", "age","ins","pvr","rev")]
+head(don)
+```
+
+
+## Résumé rapide
+
+On effectue un résumé rapide du tableau à l'aide de la fonction `summary()`:
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 0.8em'"
+#| echo: true
+
+
+summary(don)
+
+```
+
+# 2. ANALYSE D'UNE VARIABLE QUALITATIVE (type *factor* ou *logic*)
+
+
+## Choix de la  variables
+
+Nous allons prendre comme exemple la variable ins que l'on va extraire du tableau pour en faire un vecteur X qui est de type factor
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+
+X <-don$ins
+class(X)
+```
+
+
+
+
+## 2.1 tableau de dénombrement
+
+
+Pour dénomber une variable qualitative, on utilise l'instruction **table()** qui crée un objet particulier qui n'est ni un *data.frame*, ni une *matrix*.
+
+
+### création et affichage du tableau 
+
+
+```{r table}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+
+tab<-table(X)
+tab
+```
+
+
+## 2.1 tableau de dénombrement
+
+### Ajout du total
+
+Un objet de type table peut être manipulé par des fonctions spéciales comme *addmargins()*
+
+```{r table3}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+
+tab2<-addmargins(tab)
+tab2
+```
+
+
+### Transformation en fréquence
+
+On peut également passer en fréquence avec la fonction *prop.table()*
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+
+tab3<-prop.table(tab)
+tab3
+```
+
+
+
+### Transformation en pourcentage
+
+On peut finalement afficher le résultat sous une forme élégante : 
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+
+tab4<-100*addmargins(tab3)
+tab4
+```
+
+
+
+## 2.3 Visualiation
+
+La fonction **plot()** s'applique à la plupart de objets R. Elle s'adapte au type d'objet et va chercher la fonction la plus adaptée au type de variable. Dans le cas d'une variable de type factor, la fonction *plot()* appelle en réalité la fonction *barplot()* après avoir effectué le dénombrement avec *table()*
+
+### Diagramme en bâtons
+
+```{r plot}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+
+# Ecriture simple
+plot(X)
+
+# Ecriture équivalente
+# barplot(table(X))
+```
+
+
+### plot amélioré
+
+```{r, plot2}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+
+plot(X,col=c("orange","yellow",
+             "lightyellow","lightgreen"), 
+     main= "Niveau d'instruction des chefs de ménages",
+     xlab = "niveau", 
+     ylab = "Nombre de ménages",
+     sub = "Source : INS, 2021")
+```
+
+
+
+# 3. ANALYSE D'UNE VARIABLE QUANTITATIVE
+
+
+
+## 3.1 Valeurs centrales et paramètres de dispersion
+
+### fonctions élémentaires
+Une variable numérique peut faire l'objet d'un ensemble de résumés statistiques à l'aide de fonctions élémentaires
+
+
+- **min()**   : minimum
+- **max()**   : maximum
+- **mean()**  : moyenne
+- **sd()**    : écart-type
+- **sum()**   : somme
+
+
+
+On va prendre l'exemple du revenu moyen par habitant
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 0.7em'"
+#| echo: true
+
+X <- don$rev
+min(X)
+max(X)
+mean(X)
+sd(X)
+```
+
+### quantiles
+
+Pour calculer les quantiles on peut utiliser la fonction **quantile()** en paramétrant la valeur de fréquence cumulée ascendante
+
+- **quantile(X,0)**     : minimum
+- **quantile(X,0.10)**  : D1 (premier décile)
+- **quantile(X,0.25)**  : Q1 (premier quartile)
+- **quantile(X,0.5)**   : Q2 (médiane)
+- **quantile(X,0.75)**  : Q3 (troisième quartile)
+- **quantile(X,0.90)**  : D9 (dernier décile)
+- **quantile(X,1)**     : maximum
+
+
+
+### quantiles
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 0.7em'"
+#| echo: true
+
+X<-don$rev
+quantile(X,0.5)
+sel<-c(0,0.25,0.5,0.75,1)
+quantile(X,sel)
+sel<-c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1)
+quantile(X,sel)
+```
+
+
+## 3.2 Tableau de dénombrement (discrétisation)
+
+Une variable quantitative peut être discrétisée avec **cut()**. Elle devient alors un facteur qu'on peut dénomber avec **table()** 
+
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 0.7em'"
+#| echo: true
+
+XQ<-cut(don$rev, c(0, 500, 1000, 2000, 5000, 10000, 20000, 50000, 1000000))
+table(XQ)
+```
+
+
+## 3.3 Boîte à moustaches
+
+
+La fonction **boxplot()** permet de visualiser une distribution sous forme de boîte à moustache où l'on repère facilement :
+
+- la médiane
+- les quartiles Q1 et Q3
+- le minimum et le maximum
+- les valeurs extrêmes 
+
+
+### Boxplot simple
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+boxplot(X)
+```
+
+
+### Boxplot améliorée
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+boxplot(X,horizontal = TRUE, 
+        col = "gray80",
+        main = "Revenu par habitant des ménages",
+        xlab = "en DT",
+        outline = F 
+        )
+```
+
+
+
+## 3.4 Histogramme
+
+Dans le cas d'une variable **quantitative continue**, la visualisation la plus logique est l'histogramme que l'on peut tracer avec la fonction **hist()**. Celle-ci comporte plusieurs paramètres que l'on peut visualiser en allant dans l'onglet *Help* et en tapant le nom de la fonction.
+On retiendra surtout ici
+
+- **breaks** : contrôle le choix des classes
+- **probability** : affiche la densité et non pas l'effectif des classes
+
+
+### Histogramme simple
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+#| output-location: column
+
+X<-don$rev
+hist(X)
+```
+
+
+### Histogramme amélioré
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+#| output-location: column
+
+X<-don$rev
+
+# Choix des classes
+mybreaks<-c(min(X),1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,
+                       11000, 12000, 13000, 14000, 15000,16000,
+            17000, 18000, 19000, 20000, max(X))
+
+hist(X,
+     breaks = mybreaks, 
+     col="lightyellow",
+     main = "Revenu des ménages tunisiens en 2021",
+     sub = "Source : INS, 2021",
+     xlab = "en DT par personne et par an",
+     ylab = "Probabilité",
+     xlim=c(0,20000))
+```
+
+
+
+### Histogramme superbe
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+#| output-location: column
+#| 
+X<-don$rev
+
+# Choix des classes
+mybreaks<-c(min(X),1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,
+                       11000, 12000, 13000, 14000, 15000,16000,
+            17000, 18000, 19000, 20000, max(X))
+
+hist(X,
+     breaks = mybreaks, 
+     col="lightyellow",
+     main = "Revenu des ménages tunisiens en 2021",
+     sub = "Source : INS, 2021",
+     xlab = "en DT par personne et par an",
+     ylab = "Probabilité",
+     xlim=c(0,20000))
+
+# Ajout d'une courbe de Probabilité lissée
+lines(density(X,
+              bw = sd(X)/2),
+              col="red", lwd=2)
+
+# Ajout de la moyenne et de la médiane
+abline(v=mean(X), col="blue")
+abline(v=median(X), col="green")
+
+
+```
+
+
+# 4. A VOUS DE JOUER !
+
+## Objectif
+
+Vous allez maintenant essayer de reprendre les programmes précédents en analysant successivement une variable qualitative et une variable quantitative.
+

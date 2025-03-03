@@ -1,0 +1,450 @@
+---
+title: "[MOD1] : Régression linéaire"
+subtitle: "GEO UNIV'R Tunisie 2024"
+date: "2024-05-13"
+date-format: iso
+author: "Claude Grasland, Malika Madelin"
+lang: fr
+format:
+  html:
+    embed-resources: true
+    smooth-scroll: true
+    fontsize: 0.9em
+    toc: true
+    toc-depth: 2
+    toc-title: "."
+    bibliography: [bib.bib]
+    crossrefs-hover: false
+    css: custom.css
+    theme: [yeti, style.scss]
+execute:
+  warning: false
+  message: false 
+knitr:
+  opts_chunk:
+    out.width: "100%"
+editor_options: 
+  chunk_output_type: console
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(car)
+```
+
+
+## Objectif
+
+On se propose dans ce TD de modéliser la relation entre latitude
+(X) et température moyenne (Y) en Tunisie
+
+Contrairement à la **corrélation linéaire** qui fait jouer un rôle
+symétrique au variables X et Y ($r_{XY} = r_{YX}$), la **régression
+linéaire** va introduire une dissymétrie en donnant à chacune des
+variables X et Y un rôle différent et en introduisant une **hypothèse de causalité** ou de **dépendance** :
+
+-   **la variable Y** est la variable dépendante, c'est-à-dire celle que  l'on veut expliquer ou prédire.
+-   **la variable X** est la variable indépendante, c'est-à-dire la
+    variable explicative ou du moins celle qui permet de prédire lesvaleurs de Y.
+
+Dans notre exemple, il semble logique de considérer que les températures moyennes (Y) sont une conséquences de la position en latitude (X). Nous cherchons donc un modèle
+de la forme $Y = f(X)$ dans lequel la fonction $f$ peut prendre
+différentes formes.
+
+Nous commencerons par le cas le plus simple d'une relation linéaire
+prenant la forme $Y = a.X+b$ On commencera donc par utiliser un modèle de régression linéaire simple.
+
+# 1. PREPARATION DES DONNEES
+
+On utilise le tableau habituel de 21 stations de Tunisie
+
+
+## 1.1 Importation des données
+
+```{r, echo=FALSE}
+library(readxl)
+don<-read_xlsx(path = "data/TUN-CLIMAT/tun_climat.xlsx",
+              sheet = "data")
+kable(don, caption = "Tableau de données")
+```
+
+
+On charge ensuite le fichier des métadonnées:
+
+```{r}
+# Importe les métadonnées
+meta<-read_xlsx(path = "data/TUN-CLIMAT/tun_climat.xlsx",
+              sheet = "meta")
+kable(meta, caption = "Tableau de métadonnées")
+```
+
+
+## 1.2 Sélection des variables
+
+On décide de garder les deux variables et de les renommer X et Y
+conformément à nos hypothèses.
+
+-   X : Latitude en degrés
+-   Y : Température moyenne en degrés Celsius
+
+On procède donc à l'extraction de ces variables en y ajoutant le nom et le code iso des stations. 
+
+```{r}
+# Création des variables X et X
+don$X<-don$lat
+don$Y<-don$tmoy
+
+# Sélection des colonnes
+tab<-don[,c("code","nom","X","Y")]
+
+```
+
+## 1.3 Astuce : stockage des textes d'habillage
+
+On prépare un ensemble de textes que l'on pourra utiliser pour
+l'habillage de nos graphiques. Cela évitera de devoir ensuite les
+retaper à chaque fois.
+
+On décide ici que les textes seront en français :
+
+```{r}
+nomX <- "Latitude "
+nomY <- "Température moyenne en degrés" 
+titre <- "Le climat de Tunisie"
+note <- "Source : Salem Dahech, 2024"
+```
+
+
+# 2. ANALYSE DE LA VARIABLE Y
+
+
+
+## 2.1  Calculer les paramètres principaux
+
+```{r}
+summary(tab$Y)
+sd(tab$Y)
+```
+
+-   **Commentaire :** Les températures moyennes vont  de 17.24 à 22.72 degrés avec une moyenne de 20.01 degrés et un écart type de 1.46.
+
+## 2.2 Faire un histogramme
+
+-   Histogramme rapide
+
+```{r}
+hist(tab$Y)
+```
+
+-   Histogramme amélioré
+
+```{r}
+hist(tab$Y, 
+     xlab=nomY,
+     breaks=quantile(tab$Y, c(0,0.25,0.5,0.75,1)),
+     xlim=c(17,23),
+     main = titre,
+     sub = note,
+     col = "lightyellow")
+lines(density(tab$Y),col="red")
+rug(tab$Y)
+```
+
+-   **Commentaire :** La distribution est globalement symétrique et unimodale malgré un petit mode secondaire 
+
+## 2.3 Tester la normalité
+
+Pour savoir si une distribution est gaussienne (normale) on peut
+utiliser un test statistique (test de Shapiro-Wilks) à l'aide de la
+fonction `shapiro.test()` et tracer un graphique d'écart à la loi
+gaussienne à l'aide des fonctions `qqnorm()` et `qqline()` :
+
+::: {.callout-note title="Qu'est-ce qu'un qqplot ?" collapse="true"}
+En statistiques, un Q-Q (quantile-quantile) plot est une méthode
+graphique pour comparer deux distributions de probabilité en affichant
+leur quantiles contre quantiles. Un point (x,y) du graphique représente
+un quantile de la seconde distribution (axe y) contre le même quantile
+de la première distribution (axe x). Ainsi la droite est une courbe
+paramétrique dont le paramètre est le nombre d'intervalle des quantiles.
+
+![Interprétation d'un qqplot](img/qqplot_types.png)
+
+-   **Normal qqplot**: La distribution normale est symétrique, donc
+    aucun biais (*skew*) et la moyenne est égale à la médiane.
+
+-   **Right skewed qqplot** : Right-skew aussi appelé positive skew
+    signifie que la distribution comporte des valeurs exceptionnelles à
+    droite et que la moyenne est supérieure à la médiane.
+
+-   **Left skewed qqplot**: Left-skew aussi appelé negative skew
+    signifie que la distribution comporte des valeurs exceptionnelles à
+    gauche et que la moyenne est inférieure à la médiane
+
+-   **Light tailed qqplot:** Cela veut dire que comparé à la
+    distribution normale il y a un peu plus de données dans les
+    extrémités que dans le centre de la distribution.
+
+-   **Heavy tailed qqplot:** Cela veut dire que comparé à la
+    distribution normale il y a un beaucoup plus de données dans les
+    extrémités que dans le centre de la distribution.
+
+-   **Biomodel qqplot:** illustre une distribution bimodale comportant
+    deux zones de concentration avec donc deux pics sur l'histogramme.
+
+Source : [Zach Bogart & Joyce Robbins, 2019,
+EDAV-Info](https://amelrich.github.io/EDAV/qqplot.html)
+:::
+
+```{r}
+# Graphique 
+qqnorm(tab$Y)
+qqline(tab$Y, col = "red")
+
+# test
+shapiro.test(tab$Y)
+```
+
+-   **Commentaire :** Le graphique montre que la distribution  suit
+    approximativement une loi gaussienne, ce qui est confirmé par le test de Shapiro-Wilks (p > 0.344)
+
+## 2.4 Examiner la présence de valeurs exceptionnelles
+
+La solution la plus courante est d'utiliser une boxplot :
+
+```{r}
+
+boxplot(tab$X, 
+        horizontal = T,
+        xlab = nomX,
+        main = titre,
+        sub = note)
+```
+
+-   **Commentaire :** La boxplot ne montre la présence d'aucune valeur exceptionnelle.
+    
+
+
+# 3. CORRELATION
+
+## 3.1 Visualiser la relation entre X et Y
+
+-   Graphique rapide
+
+```{r}
+plot(tab$X,tab$Y)
+```
+
+-   Graphique amélioré
+
+```{r}
+plot(don$X,don$Y,
+     main = titre,   # titre
+     cex.main = 1,      # police du titre
+     cex.sub = 0.6,     # police du sous-titre
+     xlab = nomX,    # nom de l'axe X
+     xlim = c(32.7,37.5),   # intervalle de l'axe X
+     ylab = nomY,    # nom de l'axe Y
+    ylim = c(17,24),    # intervalle de l'axe Y
+     cex.axis = 0.8,    # police des gradations d'axes
+     cex.lab = 0.8,     # police des noms d'axes
+     cex = 0.6,         # taille des symboles
+     col = "blue")       # couleur des symboles
+
+
+# Ajout d'une ligne horizontale  correspondant à la moyenne de Y
+abline(h=mean(don$Y),col="red",lwd = 1, lty = 2)
+# Ajout d'une ligne verticlae  correspondant à la moyenne de X
+abline(v=mean(don$X),col="red",lwd = 1, lty = 2)
+
+text(x = don$X,
+     y = don$Y,
+     label = don$code,
+     cex = 0.7,
+     pos=3,
+     col = "blue")
+
+```
+
+-   **Commentaire :** : La relation semble négative et linéaire
+
+## 3.2 Tester la significativité de la relation entre X et Y
+
+### Coefficient de Pearson
+
+```{r}
+cor.test(tab$X,tab$Y)
+cor(tab$X,tab$Y)**2
+```
+
+-   **Commentaire :** Selon le test du coefficient de Pearson, la
+    relation est très significative (p \< 0.001) et le pouvoir
+    explicatif de X par rapport à Y mesuré par la coefficient de
+    détermination ($r_{XY}^2$) sera élevé (63%).
+
+### Coefficien de Spearman
+
+```{r}
+cor.test(tab$X,tab$Y, method = "spearman")
+```
+
+-   **Commentaire :** Le coefficient de corrélation de Spearman (-0.77) est sensiblement égal à celui celui de Pearson (+0.80). Ceci est en général bon signe et confirme que la distribution est sans doute linéaire.
+
+# 4. REGRESSION LINEAIRE
+
+## 4.1 Calculer l'équation de la droite Y = aX+B
+
+```{r}
+modreglin <- lm(tab$Y~tab$X)
+summary(modreglin)
+```
+
+-   **Commentaire :** L'équation de la droite est donc  $Y =-0.931\times X + 52.92$. Le coefficient de pente de la droite indique que les températures diminuent de 0.93 degrés chaque fois que la latitude augmente de 1. Comme 1 degré vaut environ 100 km, cela signifie que la température baisse du sud vers le nord d'environ 0.01 degré par km. 
+
+## 4.2 Visualiser la droite
+
+```{r}
+plot(don$X,don$Y,
+     main = titre,   # titre
+     cex.main = 1,      # police du titre
+     cex.sub = 0.6,     # police du sous-titre
+     xlab = nomX,    # nom de l'axe X
+     xlim = c(32.7,37.5),   # intervalle de l'axe X
+     ylab = nomY,    # nom de l'axe Y
+    ylim = c(17,24),    # intervalle de l'axe Y
+     cex.axis = 0.8,    # police des gradations d'axes
+     cex.lab = 0.8,     # police des noms d'axes
+     cex = 0.6,         # taille des symboles
+     col = "blue")       # couleur des symboles
+
+
+# Ajout d'une ligne horizontale  correspondant à la moyenne de Y
+abline(h=mean(don$Y),col="red",lwd = 1, lty = 2)
+# Ajout d'une ligne verticlae  correspondant à la moyenne de X
+abline(v=mean(don$X),col="red",lwd = 1, lty = 2)
+
+text(x = don$X,
+     y = don$Y,
+     label = don$code,
+     cex = 0.7,
+     pos=3,
+     col = "blue")
+
+abline(modreglin, col ="black", lwd =2)
+
+```
+
+-   **Commentaire:** La droite s'ajuste assez bien au nuage de points mais certains points en sont assez éloignés.
+
+## 4.3 Calculer les valeurs estimées et les résidus
+
+```{r}
+# Extraction des valeurs estimées et résiduelles
+tab$Yest <- modreglin$fitted.values
+tab$Yres <- modreglin$residuals
+
+# Affichage du tableau trié
+kable(tab[order(tab$Yres),])
+
+```
+
+**Commentaire** : Le tableau permet de repérer les stations qui s'éloignent le plus de la droite en raison d'une surestimation ou d'une sous-estimation de leurs température par la latitude. 
+
+- Les **résidus négatifs** correspondent à des stations dont la température est moins chaude que ce que laisserait prévoir leur latitude. C'est par exemple le cas de la station d'El Kef dont la latitude (36.13) laissait prévoir une températude de 19.2 degrés  mais qui en pratique a une température de 17.2° soit un résidu de 2 degrés de moins que prévu.
+
+- Les **résidus positifs** correspondent à des stations dont la température est plus chaude que ce que laisserait prévoir leur latitude. C'est par exemple le cas de la station de Tozeur dont la latitude (33.94) laissait prévoir une températude de 21.3 degrés  mais qui en pratique a une température de 22.6 degrés soit un résidu de 1.3 degrés de plus que prévu. 
+
+## 4.4 Sauvegarder les résultats du modèle
+
+On peut si on le souhaite sauvegarder les résultats au format .csv
+
+```{r, eval=FALSE}
+write.table(x = tab,
+            file = "result.csv",
+            row.names = FALSE)
+```
+
+# 5. EVALUATION DU MODELE
+
+Avant de tirer des conclusions hâtives sur les résidus, il est
+préférable de vérifier si les hypothèses fondamentales du modèle de
+régression ont bien été respectées. On va utiliser pour cela quatre
+graphiques de bases fournis par R et des tests présents dans le package
+`car` (acronyme de "*Companion for Applied Regression*").
+
+## 5.1 Autocorrélation des résidus
+
+```{r}
+library(car)
+plot(modreglin,
+     which = 1,
+     labels.id = tab$nom,
+     col="red")
+
+durbinWatsonTest(modreglin)
+```
+
+-   **Commentaire** : le graphique permet de voir que les résidus sont dans l'ensemble indépendants des valeurs estimées de Y, ce qui signifie que les points sont bien répartis autour de la droite On peut s'en assurer à l'aide du *test de Durbin Watson* qui pose l'hypothèse *H0 : Il existe une autocorrélation des résidus*. Cette hypothèse peut être rejetée (p < 0.05) donc il n'existe pas d'autocorrélation susceptible de fausser les résultats
+
+## 5.2 Normalité des résidus
+
+```{r}
+plot(modreglin,
+     which = 2,
+     labels.id = tab$nom,
+     col="red")
+
+shapiro.test(tab$Yres)
+```
+
+-   **Commentaire** : La normalité de la distribution des résidus est également une condition importante de validité du modèle de régression linéaire puisqu'elle permet de définir un intervalle de confiance des estimations en se servant de l'écart-type de ces résidus (e.g. + ou - 2 écarts-type pour un intervalle de confiance à 95%). Au vu du diagramme QQ plot on voit que la condition de normalité des résidus semble bien vérifiée, ce que confirme le test de Shapiro (p > 0.05)
+
+## 5.3 Homogénéité des résidus
+
+```{r}
+plot(modreglin,
+     which = 3,
+     labels.id = tab$nom,
+     col="red")
+
+ncvTest(modreglin)
+```
+
+-   **Commentaire** : En liaison avec ce qui précède, l'analyse de l'homogénéité des résidus permet de vérifier si la variance des résidus est constante et donc si l'intervalle de confiance sera le même pour l'ensemble des valeurs estimées. Ici, c'est à peu près le cas même si les résidus varient un peu en fonction de Y. On peut vérifier l'homogénéité en  appliquant le *test de Breush-Pagan* qui examine l'hypothèse "H0 : la distribution des résidus est homogène". Dans notre exemple H0 ne peut pas être rejetée  (p \< 0.001) ce qui signifie que l'hypothèse d'homogénéité des résdus est vérifiée
+
+## 5.4 Absence de valeurs exceptionnellement influentes
+
+```{r}
+plot(modreglin,
+     which = 4,
+     labels.id = tab$nom,
+     col="red")
+
+outlierTest(modreglin, labels = tab$nom)
+
+
+```
+
+-   **Commentaire :** Le dernier test consiste à vérifier si la relation observée est bien le résultat d'un ensemble d'observations indépendantes et non pas l'effet de la présence d'une ou deux valeurs exceptionnelles. Plusieurs tests sont ici possibles qui visent au même objectif : déterminer à quel point le retrait d'unevaleur unique modifie le résultat de l'analyse, c'est à dire le coefficient de détermination $r_{XY}^2$ et les paramètres $a$ et $b$ de l'équation $Y=aX+b$. Le graphique proposé par R utilise la *distance de Cook* pour mettre en valeur l'influence potentielle des valeurs exceptionnelles et on y retrouve les trois stations de Kebeli, El Kef et Tataouine. On peut arriver à un résultat similaire en utilisant le test de Bonferroni qui signale le caractère influent de la station d'El Kef (p < 0.05)
+
+## 5.5 Tous les tests d'un coup
+
+Une fois que l'on a bien compris les tests précédents, on peut afficher les quatre graphiques correspondant en une seule commande :
+
+```{r}
+par(mfrow=c(2,2))
+plot(modreglin,
+     which = c(1,2,3,4),
+     labels.id = tab$nom,
+     col="red")
+
+```
+
+# CONCLUSION 
+
+Le modèle apparaît finalement valide à tous points de vue, la seule réserve étant le rôle très influent de la station d'El Kef. Notre modèle n'explique cependant que 64% de la variance des températures ce qui laisse supposer que d'autres facteurs sont à l'oeuvre pour expliquer les 36% restants. On peut penser à l'altitude, la distance à la mer, la situation d'abri face au vent, ...
+
+Pour aboutir à un modèle plus complet, on utilisera alors la **régression multiple**. 

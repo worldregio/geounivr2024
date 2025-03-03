@@ -1,0 +1,1297 @@
+---
+title: "[SPA1] Resumé d'un semis de points"
+subtitle: "GEO UNIV'R Tunisie 2024"
+date: "05/16/2024"
+author: "Marianne Guérois, Malika Madelin"
+format:
+  html:
+    embed-resources: true
+    theme: yeti
+    smooth-scroll: true
+    fontsize: 0.9em
+    toc: true
+    toc-depth: 2
+    toc-title: "."
+    bibliography: [bib.bib]
+    css: custom.css
+    crossrefs-hover: false
+execute:
+  warning: false
+  message: false 
+  cache: false   
+knitr:
+  opts_chunk:
+    out.width: "100%"
+editor_options: 
+  chunk_output_type: console
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+![](img/Img_semis.png)
+
+# Objectifs et mise en place du module
+
+Dans ce premier module d'analyse spatiale, vous allez voir comment
+construire un **premier résumé** d'une **répartition spatiale
+d'observations ponctuelles**, en appliquant des méthodes de statistiques
+univariées (valeurs centrales, paramètres de dispersion...) aux
+coordonnées spatiales de lieux. Aborder l'analyse spatiale par l'analyse
+d'un **semis de points** présente plusieurs avantages :
+
+-   On se concentre sur la **forme la plus élémentaire des objets géographiques** (des points associés dans un semis) pour voir comment
+    construire des indicateurs qui révèlent des schémas d'organisation
+    spatiale, à partir d'opérations sur les coordonnées des lieux.
+-   C'est l'occasion d'introduire les notions de **centralité** (au sens
+    de position plus ou moins accessible d'un lieu, voir la notice [*Hypergéo*](https://hypergeo.eu/centralite/){target="_blank"}), de **concentration** et de
+    **dispersion** de phénomènes ponctuels de natures variées (des
+    villes, des équipements, des arbres, des événements...).
+
+::: {.callout-note collapse="true"}
+## Qu'est-ce qu'un semis de points ?
+
+**Dans le langage courant**, un « semis » est un ensemble d'éléments
+dispersés sur une surface, qu'il s'agisse de graines dispersées dans un
+champ, d'un semis d'étoiles, d'un semis d'îles...
+(cf. [CNRTL](http://www.cnrtl.fr/){target="_blank"}). **En géographie**, on utilise souvent ce terme
+associé à la notion de « semis urbain », pour désigner la répartition
+des villes dans un espace donné. Plus généralement, ce terme est
+synonyme de **distribution spatiale d'objets ou d'événements** pouvant
+être assimilés à des points (des arbres, des villes, des équipements
+hospitaliers, des accidents...). L'**information associée à ces points**
+est en général structurée au sein d'un tableau d'information
+géographique, où chaque ligne correspond à un point, et où, *a minima*,
+deux colonnes décrivent les coordonnées de position de ces points. Ces
+derniers sont aussi souvent munis d'attributs qualitatifs et/ou
+quantitatifs.
+
+Les **méthodes d'analyse de semis de points** aident à **révéler des
+schémas d'organisation** et à proposer des indicateurs qui vont
+faciliter le travail de description et de comparaison des formes
+spatiales, autour de différentes questions : comment résumer la
+répartition d'un ensemble de lieux ? suivre dans le temps les tendances
+de localisation de phénomènes ? peut-on identifier des formes plus ou
+moins concentrées d'organisation spatiale et émettre des hypothèses sur
+les processus ayant conduit à ces répartitions ?
+:::
+
+### Pré-requis méthodologiques
+
+-   Sur l'information géographique : définition des coordonnées
+    spatiales d'objets géographiques
+-   En statistiques : résumé d'une distribution statistique univariée
+    (valeurs centrales, paramètres de dispersion)
+
+### Packages utilisés
+
+-   [**`sf`**](https://cran.r-project.org/web/packages/sf/index.html){target="_blank"} : importer, manipuler et exporter des données géographiques vectorielles [vu LUN1, MAR1... en particulier pour
+    *`st_coordinates()`*, *`st_point()`*]{style="color:#5396B0;"} ;
+-   [**`mapsf`**](https://cran.r-project.org/web/packages/mapsf/index.html){target="_blank"} : pour la cartographie thématique [vu MAR2
+    ]{style="color:#5396B0;"} ;
+-   [**`mapview`**](https://cran.r-project.org/web/packages/mapview/index.html){target="_blank"} : pour une cartographie interactive élémentaire [vu
+    MAR1]{style="color:#5396B0;"} ;
+-   [**`dplyr`**](https://cran.r-project.org/web/packages/dplyr/index.html){target="_blank"} : pour manipuler des tableaux de données statistiques,
+    utilisé ponctuellement ;
+-   [**`car`**](https://cran.r-project.org/web/packages/car/index.html){target="_blank"} (*Companion to Applied
+Regression*) : pour tracer des ellipses à partir de semis de points ;
+-   [**`osmextract`**](https://cran.r-project.org/web/packages/osmextract/index.html){target="_blank"} : pour l'exercice d'application, télécharger des
+    données OpenStreetMap [vu LUN3 ]{style="color:#5396B0;"}.
+
+**Installation** (si le package n'est pas déjà installé sur votre
+machine)
+
+```{r, cache = T, message=F}
+# liste des packages nécessaires
+liste_packages <- c("dplyr", "sf", "mapsf", "mapview", "car","osmextract","kableExtra")
+# liste des éventuels packages à installer (= ceux qui ne sont pas déjà installés)
+new_packages <- liste_packages[!(liste_packages %in% installed.packages()[,"Package"])]
+# s'il y en a, installation 
+if(length(new_packages)) install.packages(new_packages)
+```
+
+**Chargement** des packages
+
+```{r, cache = T,message=F}
+library(dplyr)
+library(sf)
+library(mapsf)
+library(mapview)
+library(car)
+library(osmextract)
+library(kableExtra)
+```
+
+### Importation des bases de données
+
+**Fond de carte des délégations, gouvernorats et régions (source : INS &
+Syfacte/Riate)**
+
+```{r}
+del <- st_read("data/SPA/tun_admin.gpkg", layer = "delegation", quiet = TRUE)
+del <- del[!duplicated(del$del_code),] # supprimer les doublons de del 
+gou <- st_read("data/SPA/tun_admin.gpkg", layer = "gouvernorat", quiet = TRUE)
+reg <- st_read("data/SPA/tun_admin.gpkg", layer = "region", quiet = TRUE)
+```
+
+**Les villes : données et géométries**
+
+::: {layout="[30,70]"}
+::: {first-column}
+Importation des données statistiques et des géométries sur les
+agglomérations tunisiennes de plus de 10 000 habitants, issues de la
+base Africapolis (OCDE/CSAO (2020), Africapolis (base de données),
+<http://www.africapolis.org> (consultée le 2024-03-20). Lien vers la
+[page du
+téléchargement](https://oecd.us4.list-manage.com/subscribe?u=5aa4680998eddebe5f4ce7065&id=17db0c31dd){target="_blank"}.
+
+Pour accéder directement au fichier des **agglomérations tunisiennes
+pré-traitées** pour cet exemple (transformation des taches urbaines
+(polygones) en points, projection en EPSG:3035...) :
+
+```{r}
+vil <- st_read(dsn = "data/SPA/vil.gpkg", quiet=TRUE)
+```
+
+*89 polygones en 2015*\
+*crs:3035*\
+*décrits par 11 variables (code, nom, pop1950-2015...)*
+
+Création d'un fichier par date (1950-1970-1990-2015) pour faciliter
+certaines représentations cartographiques
+
+```{r}
+vil1950 <- vil[vil$Pop1950>0,]
+vil1970 <- vil[vil$Pop1970>0,]
+vil1990 <- vil[vil$Pop1990>0,]
+vil2015 <- vil[vil$Pop2015>0,]
+```
+
+:::
+
+::: {second-column}
+![](img/PopAgglos2015.png)
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Code R mapsf pour la création de la carte
+
+```{r, fig.width=5, fig.height=5, eval=FALSE}
+
+#####################################################################################
+##                Après avoir réalisé les étapes de pré-traitement                 ##
+##       (cf. Encadré "Pour voir les différentes étapes de pré-traitement...)      ##
+#####################################################################################
+
+# Affichage fond des gouvernorats
+mf_map(x = gou, col = "bisque", border="white")
+
+# Affichage cercles proportionnels population
+mf_map(x = vil,                  ## fichier de départ
+       var = "Pop2015",          ## la variable à représenter
+       type = "prop",            ## le type de carte, ici par cercles proportionnels
+       val_max = 2000000,        ## la valeur maximale de la population
+       inches = 0.4,             ## la taille des cercles
+       col = "brown3",           ## la couleur des cercles
+       leg_pos="topright",       ## la position de la légende
+       leg_title = "Population"  ## le titre de la légende
+)
+# Affichage de qqs noms de villes
+mf_label( x = vil[vil$Pop2015>30000,],var = "Nom", 
+  col = "black",
+  cex = 0.7,
+  font = 1,
+  r = 0.1,
+  halo = TRUE,
+  overlap = FALSE,
+  lines = FALSE
+)
+# Affichage de l'échelle
+mf_scale(pos = "bottomright", lwd = 2, cex = 0.6, scale_units = "km")
+# Affichage des sources
+mf_credits("Sources : Africapolis 2020 ; INS & Syfacte/Riate",cex = 0.7)
+
+# Titre de la carte
+mf_title("Population des agglomérations urbaines en Tunisie, 2015")
+```
+:::
+
+
+::: {.callout-note collapse="true"}
+## Pour voir les différentes étapes de pré-traitement de la base Africapolis
+
+**Etape 1 :** Après extraction de la Tunisie depuis la base Africapolis,
+importation des agglomérations tunisiennes de la base Africapolis
+(.gpkg) : données sur la population des agglomérations à 8 dates (1950,
+1960, 1970, 1980, 1990, 2000, 2010, 2015), associées à la géométrie du
+contour des agglomérations.
+
+```{r, eval=FALSE,message=FALSE}
+# importation du fichier geopackage
+vilsurf <- st_read(dsn = "data/SPA/SPA1/AFRICAPTUN.gpkg", quiet=TRUE)
+# affichage des 2 premières agglomérations
+head(vilsurf,2)
+```
+
+**Etape 2 :** Le système de coordonnées de référence (CRS de la base
+Africapolis étant le WGS84 (EPSG : 4326), on applique un système de
+projection pour pouvoir effectuer des manipulations spatiales (calcul de
+distances, superpositions...). La projection choisie pour la Tunisie est
+*EPSG 3035* (ETRS89-LAEA Europe : ETRS89 European
+Terrestrial Reference System 1989 - LAEA Lambert Azimuthal Equal Area).
+
+```{r,eval=FALSE}
+# Projection en EPSG 3035
+vilsurf <- st_transform(vilsurf, crs = 3035, quiet=TRUE)
+# cartographie des mapview(vilsurf)
+```
+
+**Etape 3 :** Création des fichiers de points correspondant aux centres
+géométriques des agglomérations.
+
+```{r,eval=FALSE}
+vil <- st_centroid(vilsurf)
+```
+
+**Etape 4 :** Sélection des colonnes à conserver, renommage de certaines
+variables, création d'une variable "Apparition1" (date à laquelle une
+ville apparaît pour la 1ère fois)
+
+```{r,eval=FALSE}
+# Colonnes à conserver et renommage
+vil <- vil %>% dplyr::select(Code=agglosID,Nom=agglosName,Pop1950,Pop1960,Pop1970,Pop1970,Pop1980,Pop1990,Pop2000,Pop2010, Pop2015, geom)
+
+# Création de la variable "Apparition 1"
+vil$Apparition1 <- ifelse(vil$Pop1950!=0,1950,
+                            ifelse(vil$Pop2010==0 & vil$Pop2015!=0,2015,
+                            ifelse(vil$Pop2000==0 & vil$Pop2010!=0,2010,
+                            ifelse(vil$Pop1990==0 & vil$Pop2000!=0,2000,
+                            ifelse(vil$Pop1980==0 & vil$Pop1990!=0,1990,
+                            ifelse(vil$Pop1970==0 & vil$Pop1980!=0,1980,
+                            ifelse(vil$Pop1960==0 & vil$Pop1970!=0,1970,
+                            ifelse(vil$Pop1950==0 & vil$Pop1960!=0,1960,0))))))))
+# Autre possibilité : on pourrait aussi utiliser les fonctions CUT et LEVEL 
+```
+:::
+
+
+::: callout-tip
+## Assimiler des lieux à des points... Une opération parfois ambiguë
+
+::: {layout="[50,50]"}
+::: {first-column}
+<br> L'opération qui consiste à assimiler des lieux à des points est
+parfois élémentaire et directe (un point GPS pour enregistrer sa
+position individuelle), parfois plus ambiguë lorsque la surface du lieu
+est non nulle. 
+<br>   
+Par exemple, par quel point la tache urbaine de
+Sousse présente dans la base Africapolis peut-elle être résumée ? Par le
+centre géométrique (centroïde) de la tache, souvent retenu pour sa
+facilité de calcul sur de grands échantillons de villes ? ou bien par le
+centre historique ou économique de l'agglomération ? 
+<br>        
+Il existe plusieurs choix qui induisent une nécessaire simplification adaptée aux
+objectifs de l'étude, avec parfois des conséquences non négligeables sur
+l'identification de la position des objets étudiés et sur le calcul des
+distances...
+:::
+
+::: {second-column}
+**Sousse : de la "tache urbaine" au point** ![Image
+Africapolis](img/Africapolis_Sousse.png)
+:::
+:::
+:::
+
+
+
+### Quelques hypothèses sur la forme du semis de villes avant de lancer les traitements...
+
+::: {.callout-caution icon="false"}
+## À vous de jouer
+À partir de l'observation de ces cartes du semis urbain en Tunisie :  
+- En 2015, quelle est la caractéristique principale de ce semis ?\
+- Vous semble-t-il plutôt symétrique ou dissymétrique ? Intuitivement, où
+placeriez-vous les points moyen et médian qui résument la localisation
+de l'ensemble de villes ?\
+- Depuis 1950, dans quelle(s) direction(s) l'urbanisation s'est-elle
+diffusée ? Quelle est la période correspondant aux transformations les
+plus importantes du semis de villes ?\
+:::
+
+**Evolution du semis urbain**  
+Chaque nouvelle ville est représentée en cercle marron (les anciennes, en cercle orange, plus petit).  
+![](img/EvolSemis.png)        
+
+
+**Evolution des populations urbaines** 
+![](img/EvolSemisPop.png)
+
+::: {.callout-note collapse="true"}
+## Code R pour créer cette série de cartes
+
+**Cartes du semis urbain**
+
+```{r, fig.width=6, fig.height=6, eval=FALSE}
+
+# Mise en page (1 ligne, 4 colonnes)
+par(mfrow = c(1, 4))
+
+# Carte 1950
+mf_map(reg, col="bisque", border="white")
+mf_map(x=vil[vil$Apparition1==1950,], pch = 20, cex = 1, col = "darkred", add=TRUE) 
+mf_title("1950")
+mf_scale(pos = "bottomright", lwd = 2, cex = 0.6, scale_units = "km")
+mf_credits("Sources : Africapolis 2020 ; INS & Syfacte/Riate")
+
+# Carte 1970
+mf_map(reg, col="bisque", border="white")
+mf_map(x=vil[vil$Apparition1==1950|vil$Apparition1==1960,], pch = 20, cex = 0.8, col = "brown1", add=TRUE)
+mf_map(x=vil[vil$Apparition1==1970,], pch = 20, cex = 1, col = "darkred", add=TRUE)
+mf_title("1970")
+mf_scale(pos = "bottomright", lwd = 2, cex = 0.6, scale_units = "km")
+
+# Carte 1990
+mf_map(reg, col="bisque", border="white")
+mf_map(x=vil[vil$Apparition1!=2000|vil$Apparition1!=2010|vil$Apparition1!=2015,], pch = 20, cex = 0.8, col = "brown1", add=TRUE)
+mf_map(x=vil[vil$Apparition1==1990,], pch = 20, cex = 1, col = "darkred", add=TRUE) 
+mf_title("1990")
+mf_scale(pos = "bottomright", lwd = 2, cex = 0.6, scale_units = "km")
+
+# Carte 2015
+mf_map(reg, col="bisque", border="white")
+mf_map(x=vil[vil$Apparition1!=2015,], pch = 20, cex = 0.8, col = "brown1", add=TRUE)
+mf_map(x=vil[vil$Apparition1==2015,], pch = 20, cex = 1, col = "darkred", add=TRUE) 
+mf_title("2015")
+mf_scale(pos = "bottomright", lwd = 2, cex = 0.6, scale_units = "km")
+
+```
+
+**Cartes du semis urbain, avec les populations**
+
+```{r, fig.width=6, fig.height=6, eval=FALSE}
+
+# Recherche de la valeur maximale de population, pour calibrer la taille du plus grand cercle proportionnel :
+popmax <- max(vil$Pop2015)
+
+# Mise en page (1 lignes, 4 colonnes)
+par(mfrow = c(1,4))
+
+# Carte 1950
+mf_map(reg, col="bisque", border="white")
+mf_map(vil[vil$Apparition1==1950,], "Pop1950", "prop", val_max = popmax, inches = 0.2, leg_pos="topleft")
+# Affichage de qqs noms de villes
+mf_label( x = vil[vil$Pop1950>20000,],var = "Nom", col = "black", cex = 0.5,   font = 1, r = 0.1, halo = TRUE, overlap = FALSE, lines = FALSE)
+mf_title("1950")
+mf_scale(pos = "bottomright", lwd = 2, cex = 0.6, scale_units = "km")
+mf_credits("Sources : Africapolis 2020 ; INS & Syfacte/Riate")
+
+# Carte 1970
+mf_map(reg, col="bisque", border="white")
+mf_map(x=vil[vil$Apparition1==1950,], "Pop1970", "prop",val_max = popmax, inches = 0.2, leg_pos=NA, add=TRUE)
+mf_map(vil1970, "Pop1970", "prop", val_max = popmax, inches = 0.2,leg_pos="topleft")
+mf_label( x = vil[vil$Apparition1==1960|vil$Apparition1==1970,],var = "Nom", col = "black", border=NA, cex = 0.5,  font = 1, r = 0.1, halo = TRUE, overlap = FALSE, lines = FALSE)
+mf_title("1970")
+mf_scale(pos = "bottomright", lwd = 2, cex = 0.6, scale_units = "km")
+
+# Carte 1990
+mf_map(reg, col="bisque", border="white")
+mf_map(vil1990, "Pop1990", "prop", val_max = popmax, inches = 0.2, leg_pos="topleft")
+mf_map(x=vil[vil$Apparition1==1950|vil$Apparition1==1960|vil$Apparition1==1970|vil$Apparition1==1980,], "Pop1990", "prop",val_max = popmax, inches = 0.2, leg_pos=NA, add=TRUE)
+mf_label( x = vil[vil$Apparition1==1980|vil$Apparition1==1990,],var = "Nom",col = "black", cex = 0.5, font = 1, r = 0.1, halo = TRUE, overlap = FALSE, lines = FALSE)
+mf_title("1990")
+mf_scale(pos = "bottomright", lwd = 2, cex = 0.6, scale_units = "km")
+
+# Carte 2015
+mf_map(reg, col="bisque", border="white")
+mf_map(vil2015, "Pop2015", "prop", val_max = popmax, inches = 0.2, leg_pos="topleft")
+mf_map(x=vil2015[vil2015$Apparition1!=2015,], "Pop2015", "prop",val_max = popmax, inches = 0.2, leg_pos=NA, add=TRUE)
+mf_label( x = vil[vil$Apparition1==2000|vil$Apparition1==2010|vil$Apparition1==2015,],var = "Nom", col = "black",  cex = 0.5,  font = 1,  r = 0.1,  halo = TRUE,  overlap = FALSE,
+  lines = FALSE)
+mf_title("2015")
+mf_scale(pos = "bottomright", lwd = 2, cex = 0.6, scale_units = "km")
+
+```
+
+:::
+
+
+
+<br>
+
+# **1. Résumer la distribution spatiale d'un semis de points en localisant son centre**
+
+De la même manière qu'une distribution statistique peut être
+caractérisée à l'aide de plusieurs résumés numériques (valeurs
+centrales, paramètres de dispersion), la **forme d'une distribution
+spatiale** peut être décrite à l'aide de **points centraux** et de **mesures de
+dispersion** autour d'un centre, déterminés à partir des coordonnées des
+points du semis.
+
+Identifier le centre d'un semis de points est important pour résumer ce
+semis, suivre son évolution à des dates différentes ou encore comparer
+la répartition de deux semis sur un même espace. Cela s'obtient par le
+calcul d'un point central qui peut être **soit le point moyen, soit le
+point médian**.
+
+## **1.1 Point moyen**
+
+Pour un ensemble de *n* points (1...*i*...*n*) décrits par leurs coordonnées
+(*Xi*, *Yi*), le point moyen, noté par convention *G* (pour centre de
+Gravité), est le point qui a pour coordonnées *mX*, *mY*, c'est-à-dire la
+moyenne des distributions des *Xi* et des *Yi*.
+
+Tout comme la moyenne est la valeur qui minimise la somme des carrés des
+écarts à toutes les autres valeurs, le point moyen est le point qui
+minimise la somme des carrés des distances à tous les autres points. Ce
+point est un résumé moyen des positions et s'avère utile pour comparer
+les distributions spatiales de différentes catégories de points à une
+même date (par ex. plusieurs essences végétales, plusieurs catégories
+d'équipements...) ou bien pour suivre l'évolution d'une distribution à
+différentes dates, en indiquant l'orientation et le rythme d'une
+diffusion spatiale :
+
+### **Dans `R`... Quel est le point moyen du semis des villes tunisiennes ? (2015)**
+
+Le centre de gravité *G* simple (non pondéré) a pour coordonnées (*Xm*, *Ym*) : on extrait d'abord du fichier **`sf`** les **coordonnées des villes**, à l'aide de la fonction *`st_coordinates()`*, puis on calcule les **moyennes de ces coordonnées** et on **transforme ces valeurs en point**, à l'aide de la fonction *`st_point()`*.
+
+Calcul du point moyen et transformation en fichier `sf` :
+
+```{r}
+#| code-overflow: wrap
+
+# Extraction des coordonnées des villes et création d'un fichier df des villes avec leur nom, leurs coordonnées X et Y
+coordsvil15 <- data.frame(Nom = vil2015$Nom, 
+                          X = st_coordinates(vil2015)[,1], 
+                          Y = st_coordinates(vil2015)[,2], stringsAsFactors = FALSE)
+
+# Calcul de la moyenne de ces coordonnées en X et Y : on récupère directement la valeur de Xm et de Ym à partir de la moyenne calculée sur la 2e colonne (X) et la 3e colonne (Y) du tableau
+# Puis transformation en point
+ptmoy_vil15 <- st_point(c(mean(coordsvil15[, 2]), mean(coordsvil15[, 3]))) 
+
+```
+
+
+## **1.2 Point médian**
+
+Le point médian *M* est, comme la médiane par rapport à la
+moyenne, une **mesure de la tendance centrale robuste aux points
+exceptionnels ou aberrants**. Il identifie l'emplacement qui minimise
+les trajets depuis et vers toutes les autres entités dans le jeu de
+données. C'est pourquoi il est souvent utilisé pour déterminer une
+localisation optimale, en cherchant le point le plus accessible à
+l'ensemble des points du semis.
+
+À la différence du point moyen, le point médian est défini par une
+propriété générale et non pas par une formule particulière de calcul qui
+n'est valable que pour une métrique particulière. Dans un référentiel
+rectilinéaire, le point médian est le point qui partage la distribution
+spatiale en sous-parties égales (même effectif au nord, au sud, à l'est,
+à l'ouest). Il a pour coordonnées *Xmed*, *Ymed* qui sont les médianes des
+distributions des *Xi* et des *Yi* de l'ensemble du semis.
+
+### **Dans `R`... Quel est le point médian du semis des villes tunisiennes ? (2015)**
+
+Le point médian simple *M* (non pondéré) a pour coordonnées (*Xmed*, *Ymed*) :
+on calcule les **médianes de ces coordonnées** et on **transforme ces
+valeurs en point**, à l'aide de la fonction *`st_point()`*.
+
+```{r}
+# Les coordonnées des villes ont déjà été extraites pour le point moyen. On repart du même fichier coordsvil2015.
+
+# Calcul de la médiane des coordonnées X et Y puis transformation en point
+ptmed_vil15 <- st_point(c(median(coordsvil15[, 2]), median(coordsvil15[, 3])))  
+```
+
+## **1.3. Comparaison : carte des points moyen/médian en 2015**
+
+::: {.callout-caution icon="false"}
+## À vous de jouer
+
+::: {layout="[60,40]"}
+::: {first-column}
+Dans la carte ci-contre, les autrices de l'exercice ont oublié de
+mettre la légende... <br><br> **Où est le point médian ? le point moyen ?**
+<br><br> Et qu'est-ce que leur comparaison vous apprend sur la forme du
+semis ?
+:::
+
+::: {second-column}
+![](img/CompaPtsMoyMed.png){width="60%"}
+:::
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Code R pour la carte de comparaison des points moyen/médian (2015)
+
+```{r, fig.height=5, fig.width=5}
+#| eval: false
+
+# Localisation des villes en 2015
+mf_map(del, col="bisque", border="white")
+mf_map(x=vil2015, pch = 20, cex = 0.7, col = "grey60", add=TRUE) 
+
+# Ajout point moyen (2015)
+mf_map(ptmoy_vil15, pch = 20, cex = 1.5, col = "brown2", lwd = 2, add=TRUE)
+
+# Ajout point médian (2015)
+mf_map(ptmed_vil15, pch = 20, cex = 1.5, col = "purple1", lwd = 2, add=TRUE)
+
+mf_credits("Sources : Africapolis 2020, INS & Syfacte/Riate")
+# Adapter nom de pays pour le titre
+mf_title("Comparaison des points moyen/médian, 2015")
+mf_scale(pos = "bottomright", lwd = 2, cex = 0.6, scale_units = "km")
+```
+:::
+
+::: {.callout-tip collapse="true"}
+## Commentaires
+
+-   Le point médian étant le point qui partage l'ensemble de la
+    distribution en sous-parties de même effectif, on aura autant de
+    villes au nord et au sud de ce point, et autant à l'est qu'à
+    l'ouest. Représenté en violet sur la carte, il est plus proche des
+    fortes concentrations urbaines du littoral. Les coordonnées du point
+    moyen, en rouge, sont influencées par les positions méridionales et
+    occidentales extrêmes et plus rares de quelques villes. Le faible
+    décalage entre les points moyen et médian reflète cependant le
+    caractère relativement symétrique de ce semis.
+-   nb : pour faire réapparaître la légende, on peut ajouter une ligne
+    de code, par exemple pour le point moyen : `mf_legend(type = "symb",
+    title="Point moyen", pos = "topright", pal= "brown2", pt_pch =
+    15,pt_cex = 1,val = "")`
+:::
+
+## **1.4. Point moyen pondéré : où est le centre de la population urbaine ?**
+
+Pour tenir compte non seulement des positions des points du semis mais
+aussi de leur poids respectif (par exemple, des populations plus ou
+moins importantes des villes), on peut affecter des poids aux points et
+prendre en compte ces poids dans le calcul des coordonnées du point
+moyen.
+
+Ainsi, pour un ensemble de *n* points (1...*i*...*n*) décrits par leurs
+coordonnées (*Xi*, *Yi*) et par leur masse *Mi*, le centre de gravité pondéré
+(noté *Gp*), barycentre des masses localisées, est le point qui a pour
+coordonnées *Xmp*, *Ymp* (moyenne des coordonnées en *Xi* et en *Yi* pondérées par
+les populations).
+
+Attribuer un poids à des coordonnées, c'est multiplier chacune des
+coordonnées par la « masse » (ici la population) de chaque ville. Puis,
+pour trouver la position du centre de gravité pondéré, on doit diviser
+la somme des coordonnées pondérées par la somme des populations des
+villes. Sur le graphique, la pondération a pour effet de rapprocher le
+centre de gravité pondéré (*Gp*) de la ville la plus peuplée du semis.
+
+### **Dans `R`... Comment calculer le point moyen pondéré ? Exemple pour le centre des populations urbaines tunisiennes (2015)**
+
+Ajout des **populations** au tableau *coordsvil15* :
+```{r}
+coordsvil15 <- merge(coordsvil15, vil2015, by = "Nom")
+coordsvil15 <- coordsvil15[,c("Nom", "X", "Y", "Pop2015")]
+```
+
+Calcul des **coordonnées pondérées** par les populations, **pour chaque ville** :
+```{r}
+coordsvil15$Xmp <- coordsvil15$X * coordsvil15$Pop2015
+coordsvil15$Ymp <- coordsvil15$Y * coordsvil15$Pop2015
+```
+
+Puis on calcule les **coordonnées du point moyen pondéré** en divisant la
+somme des *Xmp* par la somme des populations (idem pour *Ymp*).
+```{r}
+xctrp15 <- sum(coordsvil15$Xmp)/sum(coordsvil15$Pop2015)
+yctrp15 <- sum(coordsvil15$Ymp)/sum(coordsvil15$Pop2015)
+```
+
+Enfin on **crée un nouveau fichier `sf`** pour représenter ce point moyen
+pondéré par les populations.
+```{r}
+ptmoyp_vil15 <- st_point(c(xctrp15, yctrp15))
+```
+
+::: {.callout-caution icon="false"}
+## À vous de jouer
+
+::: {layout="[60,40]"}
+::: {first-column}
+\
+
+Dans la carte ci-contre, les autrices de l'exercice ont oublié de
+mettre la légende...\
+\
+Où est le point moyen non pondéré ? pondéré ?\
+\
+Et qu'est-ce que leur comparaison vous apprend sur la forme du semis ?
+:::
+
+::: {second-column}
+![](img/CartePtmoypond.png){width="60%"}
+:::
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Code R pour la carte de comparaison des points moyens pondérés / non pondérés (2015)
+
+```{r, fig.height=5,fig.width=5, res=200}
+#| eval: false
+
+# Carte des populations des villes en 2015
+mf_map(gou, col="bisque", border="white")
+mf_map(x=vil2015, "Pop2015", "prop", val_max = 2000000, leg_pos="bottomleft", col = "grey80", border="white", add=TRUE) 
+mf_title("Pop. urbaine, 2015")
+mf_scale(pos = "bottomright", lwd = 2, cex = 0.6, scale_units = "km")
+mf_credits("Sources : Africapolis 2020, INS & Syfacte/Riate")
+
+# Ajout point moyen (2015)
+mf_map(ptmoy_vil15, pch = 20, cex = 2, col = "brown2", lwd = 3, add=TRUE)
+
+# Ajout point moyen pondéré (2015)
+mf_map(ptmoyp_vil15, pch = 20, cex = 2, col = "lightsalmon", lwd = 3, add=TRUE)
+
+# Affichage de qqs noms de villes
+mf_label( x = vil2015[vil2015$Pop2015>50000,],var = "Nom", 
+  col = "black",
+  cex = 0.5,
+  font = 1,
+  r = 0.1,
+  halo = TRUE,
+  overlap = FALSE,
+  lines = FALSE
+)
+
+# Adapter nom de pays pour le titre
+mf_title("Points moyens non pondéré / pondéré, 2015")
+
+```
+:::
+
+
+<br>
+
+
+
+# **2. Compléter le résumé en analysant la dispersion autour du centre : distance-type et ellipse de dispersion**
+
+## **2.1 La distance-type**
+
+La distance-type (ou distance standard) mesure la **dispersion des
+points autour du point moyen**. Tout comme une valeur centrale est
+précisée par un paramètre de dispersion statistique, un point central
+peut être accompagné d'un paramètre de dispersion spatiale qui indique
+l'éloignement des points ou de la population par rapport à celui-ci.
+
+Cette distance-type a pour valeur la racine de la somme des variances de
+*X* et de *Y*. Il en résulte une valeur unique qui est une mesure
+d'éloignement au centre : cette dernière peut être représentée sur une
+carte en traçant un cercle de rayon égal à la valeur de distance-type et
+dont le centre correspond au point moyen.
+
+Dans le cas d'une distribution spatiale symétrique, 67% des points sont
+théoriquement situés à moins d'une distance type du centre de gravité,
+95% à moins de deux distances-types.
+
+### **Dans `R`... Calcul de la distance-type à l'aide de la fonction `sf::st_buffer()` (2015)**
+
+Quelle est la dispersion moyenne des villes autour du centre ? où se
+trouvent la majorité des villes autour du point moyen ?
+
+La dispersion moyenne des villes autour du centre moyen peut être
+visualisée à l'aide de la mesure de la distance-type. On calcule d'abord
+la distance-type des coordonnées des villes, avant de tracer le cercle
+dont le rayon correspond à cette distance.
+
+**Calcul de la distance standard**
+```{r,eval=FALSE}
+sdvil15 <- sqrt(sum((coordsvil15[,2] - ptmoy_vil15[1])^2 
+                    + (coordsvil15[,3] - ptmoy_vil15[2])^2) /nrow(coordsvil15))
+```
+
+**Créer la géométrie du cercle (à l'aide de la fonction *`st_buffer()`* de `sf`)**
+```{r,eval=FALSE}
+sdvil15_buffer <- st_buffer(ptmoy_vil15, sdvil15)
+```
+
+
+**Carte du point moyen et de la distance standard**
+
+
+```{r,fig.height=5,fig.width=5, res=200, eval=FALSE}
+
+mf_map(del, col = "bisque", border="white")
+mf_map(vil2015, pch = 20, cex = .6, col = "brown4", add=TRUE) 
+mf_map(ptmoy_vil15, pch = 20, cex = 1.5, col = "brown4", lwd = 3,add=TRUE)
+mf_map(sdvil15_buffer, col = NA, lwd = 2, border = "brown4", add=TRUE) 
+
+mf_title("Point moyen et dispersion du semis, 2015")
+mf_scale(pos = "bottomright",lwd = 1,cex = 0.6,scale_units="km")
+mf_credits("Sources : Africapolis 2020, INS & Syfacte/Riate")
+```
+
+
+![](img/DistanceType.png){width="30%"}
+
+## **2.2 L'ellipse de dispersion**
+
+Pour traduire l'orientation privilégiée du semis de manière plus souple,
+on peut préférer à la distance-type le calcul d'une ellipse de
+dispersion. Une manière d'en déterminer l'axe principal d'étirement, ou
+encore axe de variance maximal, est par exemple illustrée dans @feuillet_etal2019, p.85 :
+
+- Construction des diagrammes de distribution suivant les coordonnées en
+*X* et en *Y*   
+- Calcul de la moyenne observée pour positionner le point moyen (centre de l'ellipse)   
+- Calcul des écart-types respectifs des coordonnées *X* et *Y*, pour identifier l'axe d'étirement principal du
+semis, situé au croisement des valeurs moyennes de *X* et *Y* + 1 écart-type d'une part, des valeurs moyennes de *X* et *Y* - 1 écart-type d'autre part
+
+### **Dans `R`...**
+
+On peut dessiner les contours de l'ellipse de dispersion à l'aide de la
+fonction *`dataEllipse()`* du package *`car`* (Companion to Applied
+Regression).
+
+
+```{r, fig.width=4, fig.height=4,eval=FALSE}
+#| code-overflow: wrap
+
+# Carte 2015 des villes
+mf_map(del, col = "bisque", border="white")
+mf_map(vil2015, pch = 20, cex = .6, col = "brown4", add=TRUE) 
+mf_map(ptmoy_vil15, pch = 20, cex = 1.5, col = "brown4", lwd = 3,add=TRUE)
+mf_title("Point moyen et ellipse de dispersion du semis, 2015")
+
+# Tracé de l'ellipse en 2015
+# Faire d'abord la transformation des coordonnées en data.frame, pour pouvoir utiliser la fonction "dataEllipse" du package Car
+
+vil_pt_df_2015 <- cbind(st_drop_geometry(vil2015), 
+                   st_coordinates(vil2015))
+
+dataEllipse(x = vil_pt_df_2015$X, 
+            y = vil_pt_df_2015$Y, 
+            center.pch = FALSE, plot.points=FALSE,col = "brown4",
+            levels = .66,xpd=T, # xpd=T permet d'écrire dans les marges
+            add = TRUE)
+
+mf_scale(pos = "bottomright",lwd = 1,cex = 0.6,scale_units="km")
+mf_credits("Sources : Africapolis 2020, INS & Syfacte/Riate")
+```
+
+
+![](img/Ellipse.png){width="30%"}
+
+
+# 3. Pour aller plus loin
+
+## **Analyse temporelle**
+
+Pour suivre dans le temps l'évolution de la répartition des villes et
+des populations urbaines, les grandes tendances de leur localisation,
+vous pouvez calculer les points médian et moyen à différentes dates.
+
+### **Comment ce semis urbain s'est-il diffusé dans le temps, depuis 1950 ?**
+
+::: {.callout-caution icon="false"}
+## À vous de jouer
+
+Que montre le déplacement du point moyen depuis 1950 ? Comment les directions et les rythmes de diffusion de l'urbanisation ont-ils évolué depuis 1950 ?
+:::
+
+::: {.callout-tip collapse="true"}
+## Code R pour cartographier le déplacement du point moyen depuis 1950
+
+**Calcul des points moyens de 1950 à 2015**
+
+```{r}
+#| code-overflow: wrap
+
+# 1950
+coordsvil50 <- data.frame(Nom = vil1950$Nom, X = st_coordinates(vil1950)[,1], Y = st_coordinates(vil1950)[, 2], stringsAsFactors = FALSE)
+ptmoy_vil50 <- st_point(c(mean(coordsvil50[, 2]), mean(coordsvil50[, 3])))
+
+# 1970
+coordsvil70 <- data.frame(Nom = vil1970$Nom, X = st_coordinates(vil1970)[,1], Y = st_coordinates(vil1970)[, 2], stringsAsFactors = FALSE)
+ptmoy_vil70 <- st_point(c(mean(coordsvil70[, 2]), mean(coordsvil70[, 3])))
+
+# 1990
+coordsvil90 <- data.frame(Nom = vil1990$Nom, X = st_coordinates(vil1990)[,1], Y = st_coordinates(vil1990)[, 2], stringsAsFactors = FALSE)
+ptmoy_vil90 <- st_point(c(mean(coordsvil90[, 2]), mean(coordsvil90[, 3])))
+
+# 2015
+coordsvil15 <- data.frame(Nom = vil2015$Nom, X = st_coordinates(vil2015)[,1], Y = st_coordinates(vil2015)[, 2], stringsAsFactors = FALSE)
+ptmoy_vil15 <- st_point(c(mean(coordsvil15[, 2]), mean(coordsvil15[, 3])))
+```
+
+**Création du tableau des coordonnées des pts moyens pour les 4 dates et
+transformation en fichier `sf`**
+
+```{r}
+ptmoy <- data.frame(Date = c("1950","1970","1990","2015"),
+                    X = c(ptmoy_vil50[1],ptmoy_vil70[1],ptmoy_vil90[1],ptmoy_vil15[1]),
+                    Y = c(ptmoy_vil50[2],ptmoy_vil70[2],ptmoy_vil90[2],ptmoy_vil15[2]))
+
+# Transformation du df en fichier de points
+ptmoy <- st_as_sf(x=ptmoy,
+                  coords = c("X","Y"),
+                  crs = 3035)
+```
+
+Avec Mapview
+
+```{r}
+#| eval: false
+
+mapview(ptmoy)
+```
+:::
+
+### **Et quand on prend on compte la population des villes ?**
+
+::: {.callout-caution icon="false"}
+## À vous de jouer
+
+Comment expliquer les différences observées dans le déplacement du point
+moyen entre 1950 et 2010, selon que le point est pondéré ou non par la
+population ?
+:::
+
+::: {.callout-tip collapse="true"}
+## Code R pour l'analyse de la diffusion du semis urbain pondéré
+
+**Calcul des points moyens pondérés pour les dates antérieures à 2015**
+
+```{r}
+# 1950
+coordsvilpop50 <- left_join(coordsvil50, vil1950, by = "Nom", keep = FALSE) %>%
+  select(Nom, X, Y, Pop1950)
+coordsvilpop50 <- coordsvilpop50 %>%
+  mutate(Xp = X * Pop1950, Yp = Y * Pop1950)
+xctrp50 <- sum(coordsvilpop50$Xp)/sum(coordsvilpop50$Pop1950)
+yctrp50 <- sum(coordsvilpop50$Yp)/sum(coordsvilpop50$Pop1950)
+ptmoyp_1950 <- st_point(c(xctrp50, yctrp50))
+
+# 1970
+coordsvilpop70 <- left_join(coordsvil70, vil1970, by = "Nom", keep = FALSE) %>%
+  select(Nom, X, Y, Pop1970)
+coordsvilpop70 <- coordsvilpop70 %>%
+  mutate(Xp = X * Pop1970, Yp = Y * Pop1970)
+xctrp70 <- sum(coordsvilpop70$Xp)/sum(coordsvilpop70$Pop1970)
+yctrp70 <- sum(coordsvilpop70$Yp)/sum(coordsvilpop70$Pop1970)
+ptmoyp_1970 <- st_point(c(xctrp70, yctrp70))
+
+# 1990
+coordsvilpop90 <- left_join(coordsvil90, vil1990, by = "Nom", keep = FALSE) %>%
+  select(Nom, X, Y, Pop1990)
+coordsvilpop90 <- coordsvilpop90 %>%
+  mutate(Xp = X * Pop1990, Yp = Y * Pop1990)
+xctrp90 <- sum(coordsvilpop90$Xp)/sum(coordsvilpop90$Pop1990)
+yctrp90 <- sum(coordsvilpop90$Yp)/sum(coordsvilpop90$Pop1990)
+ptmoyp_1990 <- st_point(c(xctrp90, yctrp90))
+```
+
+**Tableau des coordonnées des pts moyens pondérés pour les 4 dates et
+transformation en fichier `sf`** **Projection du point**
+
+```{r}
+ptmoyp <- data.frame(Date = c("1950","1970","1990","2015"),
+                    X = c(ptmoyp_1950[1],ptmoyp_1970[1],ptmoyp_1990[1],ptmoyp_vil15[1]),
+                    Y = c(ptmoyp_1950[2],ptmoyp_1970[2],ptmoyp_1990[2],ptmoyp_vil15[2]))
+
+ptmoyp <- st_as_sf(x=ptmoyp,
+                  coords = c("X","Y"),
+                  crs = 3035)
+```
+
+**Carte 1950-1970-1990-2015 / Symboles colorés en fonction de la date**
+
+```{r,fig.height=6,fig.width=6, res=200}
+
+par(mfrow = c(1,2))
+
+mf_map(del, col = "bisque", border="white")
+mf_map(x = ptmoy,                 ## fichier sf
+       var = "Date",              ## variables
+       type = "typo",             ## le type de carte
+       cex = 1,
+       pch = 15,
+       pal = c("rosybrown1","lightsalmon","brown2","brown4"),
+       leg_pos = "topright",
+       leg_title = "Point moyen",
+       add = TRUE
+)
+mf_scale(pos="bottomright",lwd=1.5,cex=0.6,unit="km")
+mf_credits("Sources : Africapolis, GADM")
+mf_title("Diffusion du point moyen, 1950-2010")
+
+mf_map(del, col = "bisque", border="white")
+mf_map(x = ptmoyp,             ## fichier sf
+       var = "Date",           ## variable à représenter
+       type = "typo",          ## le type de carte
+       cex = 1.5,
+       pch = 16,
+       pal = c("rosybrown1","lightsalmon","brown2","brown4"),
+       leg_pos = "topright",
+       leg_title = "Point moyen\npondéré",
+       add = TRUE
+)
+mf_scale(pos="bottomright",lwd=1.5,cex=0.6,scale_units="km")
+mf_credits("Sources : Africapolis, INS & Syfacte/Riate")
+mf_title("Diffusion du point moyen pondéré, 1950-2015")
+```
+
+```{r,fig.height=6,fig.width=6, res=200}
+
+par(mfrow = c(1,2))
+
+mf_map(del, col = "bisque", border="white")
+mf_map(x = ptmoy,                 ## fichier sf
+       var = "Date",              ## variables
+       type = "typo",             ## le type de carte
+       cex = 1,
+       pch = 15,
+       pal = c("rosybrown1","lightsalmon","brown2","brown4"),
+       leg_pos = "topright",
+       leg_title = "Point moyen",
+       add = TRUE
+)
+mf_map(x = ptmoyp,             ## fichier sf
+       var = "Date",           ## variable à représenter
+       type = "typo",          ## le type de carte
+       cex = 1.5,
+       pch = 16,
+       pal = c("rosybrown1","lightsalmon","brown2","brown4"),
+       leg_pos = "topright",
+       leg_title = "Point moyen\npondéré",
+       add = TRUE
+)
+mf_scale(pos="bottomright",lwd=1.5,cex=0.6,unit="km")
+mf_credits("Sources : Africapolis, INS & Syfacte/Riate")
+mf_title("Diffusion du point moyen pondéré et non pondéré, 1950-2015")
+```
+
+```{r}
+mapview(ptmoyp)
+```
+:::
+
+\  
+
+## **Analyser la forme d'un semis de points (concentration/dispersion)**
+
+Ces résumés d’un semis de points aident à mesurer la dispersion plus ou
+moins importante des points autour d’un centre, mais elles restent
+dépendantes de la référence à la valeur centrale et proportionnelles à
+la taille des zones d’étude (la distance-type sera d’autant plus grande
+que la zone étudiée est vaste). D'autres méthodes proposent des
+indicateurs de dispersion relative qui permettent de caractériser la
+forme plus ou moins concentrée ou dispersée d'une distribution,
+indépendamment d'une valeur centrale et de la taille de la zone d'étude.
+C'est le cas par exemple de la **méthode des distances au plus proche
+voisin**, dont un [exemple
+d'application](https://ee2023.netlify.app/modules/spa1_sem#support-de-td){target="_blank"}
+est présenté dans ce module de l'école d'été du CIST au Bénin (2023).
+
+\
+\
+\
+
+# À vous de jouer ! Exercice d'application : diffusion spatiale des clubs de foot en Tunisie
+
+Dans cet exercice d'application, vous allez réutiliser une partie des
+méthodes vues ci-dessus en les appliquant à l'analyse de la diffusion
+spatio-temporelle des clubs de foot de ligue 1, entre 1955 et 2015. Le jeu de données a été élaboré par Ali Langar, dans le cadre de sa thèse à l'Université de Sfax et de Paris Diderot. Quelques semaines avant son décès, il a publié un
+[article résumant les principaux résultats de son travail](https://journals.openedition.org/echogeo/16209){target="_blank"} dans la revue Echogéo. D'après Claude Grasland qui nous a transmis cette base, "il aurait
+souhaité que les données de son travail puissent être utilisées par d’autres enseignant·es ou étudiant·es. Ce que nous faisons afin de lui rendre hommage". 
+
+Dans cet article, Ali Langar suit la répartition des équipes de Football depuis l'indépendance pour voir dans quelle mesure l'implantation des clubs de Ligue 1 et de Ligue 2 reflète l'évolution des grandes inégalités territoriales entre littoral/intérieur et Nord/Sud, et contribue à les entretenir. Dans l'exercice, nous n'exploitons qu'une partie du jeu de données, en nous focalisant sur les **inégalités nationales révélées par l'évolution de la distribution des principales équipes participant au championnat le plus prestigieux (Ligue ou Division 1)**. L'hypothèse principale  est que partant d'une répartition très concentrée à Tunis et dans les métropoles du littoral à la fin des années 1950, le football de première division va progressivement se diffuser vers l’intérieur du pays ou vers les centres urbains de rang inférieur, selon des proximités spatiales, sociales et économiques mais aussi en fonction de la hiérarchie urbaine. 
+
+
+## Championnat de 1ère division 1955-2015
+
+**Les données originales** (informations transmises par C. Grasland)
+
+Le premier fichier décrit de façon détaillée les résultats du championnat de
+première division année par année. La variable Rang indique le
+classement et la variable CodeClub l’équipe. Les coordonnées *X* et *Y*
+donnent la longitude et la latitude du club. Les autres colonnes
+indiquent le nombre de points obtenu avec le nombre de
+matchs joués gagnés, perdus ou nuls. On trouve enfin les buts marqués
+(BP) et les buts encaissés (BC). Le deuxième fichier contient les noms des clubs et les coordonnées *X* et *Y* de leur implantation.
+
+```{r}
+# Championnat de 1ere division 1955-2015
+champ1 <- read.table("data/SPA/SPA1//champ1.csv", 
+                     header=T,
+                     sep = ";")
+head(champ1,14)
+
+# La liste des clubs de D1 et de D2
+clubs <- read.table("data/SPA/SPA1/clubs.csv", 
+                     header=T,
+                     sep = ";")
+kable(head(clubs,10))
+```
+
+
+**Les données transformées en fichier `sf` pour l'exercice**
+```{r, message=FALSE}
+champ1 <- st_read("data/SPA/SPA1/champ1.gpkg")
+```
+
+### Pré-traitements (création d'une nouvelle variable *Période*, identification des clubs de ligue 1 à chaque période)
+
+**Agrégation temporelle** 
+
+Nous reprenons les cinq périodes identifiées par Ali Langar pour suivre les grandes phases de la diffusion des clubs :
+
+- 1955-1969 : Années qui précèdent et qui suivent l'indépendance 
+- 1970-1986 : Retour à l'économie de marché, sous Bourguiba
+- 1987-2002 : Libéralisation économique sous Ben Ali (I)
+- 2003-2011 : Libéralisation économique sous Ben Ali (II)
+- 2012-2015 : Période qui suit la révolution de Jasmin
+
+Ces périodes sont associées à des hypothèses qui tiennent compte des évolutions politiques et économiques : par exemple, on pourrait s'attendre à un mouvement de concentration pendant la libéralisation économique sous Ben Ali, du fait des nouvelles options d'aménagement du territoire au profit des métropoles et du littoral, ou bien à l'inverse, à une rupture profonde avec la révolution de Jasmin qui initierait un mouvement de rééquilibrage vers le sud.
+
+**Création d'une nouvelle variable $Periode pour associer les résultats de chaque club à une période donnée**
+```{r}
+champ1$Periode <- ifelse(champ1$Annee<=1969,"1955-1969", 
+                     ifelse(champ1$Annee>1969 & champ1$Annee<=1986,"1970-1986",
+                     ifelse(champ1$Annee>1986 & champ1$Annee<=2002,"1987-2002",
+                     ifelse(champ1$Annee>2002 & champ1$Annee<=2011,"2003-2011","2012-2015"))))
+```
+
+**Quels sont les clubs présents au moins une année, pendant chaque période ?**
+On crée 5 nouveaux fichiers à partir du fichier initial *champ1* : de **Club1 (1955-1969)**... à **Club5 (2012-2015)**
+```{r}
+Periode1 <- champ1[champ1$Periode=="1955-1969",]
+Clubs1 <- Periode1 %>% group_by(CodeClub) %>% summarize(nbannees = n())
+Clubs1 <- Clubs1 %>% select(CodeClub,nbannees,geom)
+
+Periode2 <- champ1[champ1$Periode=="1970-1986",]
+Clubs2 <- Periode2 %>% group_by(CodeClub) %>% summarize(nbannees = n())
+Clubs2 <- Clubs2 %>% select(CodeClub,nbannees,geom)
+
+Periode3 <- champ1[champ1$Periode=="1987-2002",]
+Clubs3 <- Periode3 %>% group_by(CodeClub) %>% summarize(nbannees = n())
+Clubs3 <- Clubs3 %>% select(CodeClub,nbannees,geom)
+
+Periode4 <- champ1[champ1$Periode=="2003-2011",]
+Clubs4 <- Periode4 %>% group_by(CodeClub) %>% summarize(nbannees = n())
+Clubs4 <- Clubs4 %>% select(CodeClub,nbannees,geom)
+
+Periode5 <- champ1[champ1$Periode=="2012-2015",]
+Clubs5 <- Periode5 %>% group_by(CodeClub) %>% summarize(nbannees = n())
+Clubs5 <- Clubs5 %>% select(CodeClub,nbannees,geom)
+```
+
+### Analyse de la diffusion des clubs de ligue 1 entre 1955 et 2015
+
+**Objectif** : construire 5 cartes représentant pour chaque période le barycentre (point moyen) des clubs et l'ellipse de dispersion autour du point moyen.
+
+Par exemple, pour la période 1955-1969, cela suppose :
+
+1) de **projeter** le fichier **Club1** en EPSG:3035 
+2) d'**extraire les coordonnées** des équipes de Club1 au sein d'un tableau de données de format sf
+3) de calculer la **moyenne de ces coordonnées** en *X* et en *Y*
+4) de **transformer** ces coordonnées du point moyen en fichier `sf` pour pouvoir afficher ce point moyen en 1955-1969
+5) de **tracer** l'ellipse de déviation autour du point moyen
+
+
+#### Complétez le code suivant pour calculer le point moyen et l'ellipse de dispersion pour la période 1955-1969
+
+**Etapes 1) à 4): projeter Clubs1 en crs:3035, extraire les coordonnées des clubs, calculer la moyenne de ces coordonnées.**
+
+Vous devez **utiliser les quatre fonctions suivantes** (pas forcément dans cet ordre) : **`mean`**, **`st_point`**,**`st_transform`**,**`st_coordinates`**
+
+```{r, eval=FALSE}
+
+# Projection du fichier puis extraction des coordonnées des clubs
+
+Clubs1 <- ...(Clubs1, ...)
+coordsClubs1 <- data.frame(Code = Clubs1$CodeClub, X = ... (Clubs1)[,1], Y = ... (Clubs1)[, 2], stringsAsFactors = FALSE) 
+
+# Calcul de la moyenne de ces coordonnées en X et Y puis transformation en point
+
+ptmoy_Clubs1 <- ...(c(...(coordsClubs1[, 2]), ...(coordsClubs1[, 3]))) 
+```
+
+**Etape 5) : tracer l'ellipse de déviation à l'aide de la Fonction `dataEllipse` du package `car`**
+```{r, eval=FALSE}
+# Carte des Clubs1 (1955-1969)
+
+mf_map(del, col = "bisque", border="white") # Affichage du fond des délégations
+
+mf_map(..., pch = 20, cex = .6, col = "brown4", ...) # Affichage de Clubs1 
+mf_map(..., pch = 20, cex = 1.5, col = "brown4", lwd = 3,...) # Affichage du point moyen 
+mf_title("Point moyen et ellipse de dispersion des clubs de Ligue 1, 1955-1969",cex=0.8)
+
+# Tracé de l'ellipse en 1955-1969 (période 1)
+# Faire d'abord la transformation des coordonnées de Club1 en data.frame, pour pouvoir utiliser la fonction "dataEllipse" du package Car
+df1 <- cbind(st_drop_geometry(Clubs1), st_coordinates(Clubs1))
+dataEllipse(x = df1$X, 
+            y = df1$Y, 
+            center.pch = FALSE, plot.points=FALSE,col = "brown4",
+            levels = .66,xpd=T, # xpd=T permet d'écrire dans les marges
+            add = TRUE)
+```
+
+
+::: {.callout-tip collapse="true"}
+## Solution de l'exercice & suite des traitements pour construire la carte qui superpose les points moyens et les ellipses 
+
+**Extraction des coordonnées des clubs pour chaque période**
+
+```{r}
+# Extraction des coordonnées des clubs
+Clubs1 <- st_transform(Clubs1, crs=3035)
+coordsClubs1 <- data.frame(Code = Clubs1$CodeClub, X = st_coordinates(Clubs1)[,1], Y = st_coordinates(Clubs1)[, 2], stringsAsFactors = FALSE)
+
+# Calcul de la moyenne de ces coordonnées en X et Y puis transformation en point
+ptmoy_Clubs1 <- st_point(c(mean(coordsClubs1[, 2]), mean(coordsClubs1[, 3]))) # pour récupérer directement la valeur de Xm et Ym
+```
+
+```{r}
+# Extraction des coordonnées des clubs
+Clubs2 <- st_transform(Clubs2, crs=3035)
+coordsClubs2 <- data.frame(Code = Clubs2$CodeClub, X = st_coordinates(Clubs2)[,1], Y = st_coordinates(Clubs2)[, 2], stringsAsFactors = FALSE)
+
+# Calcul de la moyenne de ces coordonnées en X et Y puis transformation en point
+ptmoy_Clubs2 <- st_point(c(mean(coordsClubs2[, 2]), mean(coordsClubs2[, 3]))) # pour récupérer directement la valeur de Xm et Ym 
+```
+
+```{r}
+# Extraction des coordonnées des clubs
+Clubs3 <- st_transform(Clubs3, crs=3035)
+coordsClubs3 <- data.frame(Code = Clubs3$CodeClub, X = st_coordinates(Clubs3)[,1], Y = st_coordinates(Clubs3)[, 2], stringsAsFactors = FALSE)
+
+# Calcul de la moyenne de ces coordonnées en X et Y puis transformation en point
+ptmoy_Clubs3 <- st_point(c(mean(coordsClubs3[, 2]), mean(coordsClubs3[, 3]))) # pour récupérer directement la valeur de Xm et Ym 
+```
+
+```{r}
+# Extraction des coordonnées des clubs
+Clubs4 <- st_transform(Clubs4, crs=3035)
+coordsClubs4 <- data.frame(Code = Clubs4$CodeClub, X = st_coordinates(Clubs4)[,1], Y = st_coordinates(Clubs4)[, 2], stringsAsFactors = FALSE)
+
+# Calcul de la moyenne de ces coordonnées en X et Y puis transformation en point
+ptmoy_Clubs4 <- st_point(c(mean(coordsClubs4[, 2]), mean(coordsClubs4[, 3]))) # pour récupérer directement la valeur de Xm et Ym 
+```
+
+```{r}
+# Extraction des coordonnées des clubs
+Clubs5 <- st_transform(Clubs5, crs=3035)
+coordsClubs5 <- data.frame(Code = Clubs5$CodeClub, X = st_coordinates(Clubs5)[,1], Y = st_coordinates(Clubs5)[, 2], stringsAsFactors = FALSE)
+
+# Calcul de la moyenne de ces coordonnées en X et Y puis transformation en point
+ptmoy_Clubs5 <- st_point(c(mean(coordsClubs5[, 2]), mean(coordsClubs5[, 3]))) # pour récupérer directement la valeur de Xm et Ym 
+```
+
+**Création d'un tableau des coordonnées des pts moyens** pour les 5 périodes et
+transformation en fichier `sf`
+```{r}
+ptmoy <- data.frame(Periode = c("1955-1969","1970-1986","1987-2002","2003-2011","2012-2015"),
+                    X = c(ptmoy_Clubs1[1],ptmoy_Clubs2[1],ptmoy_Clubs3[1],ptmoy_Clubs4[1],ptmoy_Clubs5[1]),
+                    Y = c(ptmoy_Clubs1[2],ptmoy_Clubs2[2],ptmoy_Clubs3[2],ptmoy_Clubs4[2],ptmoy_Clubs5[2]))
+
+ptmoy_Clubs <- st_as_sf(x=ptmoy,
+                  coords = c("X","Y"),
+                  crs = 3035)
+```
+
+**Carte de 1955 à 2015**
+
+```{r,fig.height=6,fig.width=6, res=200}
+
+mf_map(del, col = "bisque", border="white")
+mf_map(x = ptmoy_Clubs,           ## fichier sf
+       var = "Periode",           ## variables
+       type = "typo",             ## le type de carte
+       cex = 1.5,
+       pch = 20,
+       pal = c("rosybrown1","lightsalmon","brown2","brown3","brown4"),
+       leg_pos = "topright",
+       leg_title = "Point moyen",
+       add = TRUE
+)
+mf_map(Clubs5, pch = 20, cex = .8, col = "grey60", add=TRUE) # Affichage de Clubs5 
+
+# Tracer les ellipses de déviation à l'aide de la Fonction `dataEllipse` du package `car`
+# Ex détaillé pour le tracé de l'ellipse en 1955-1969 (période 1)
+# Faire d'abord la transformation des coordonnées de Club1 en data.frame, pour pouvoir utiliser la fonction "dataEllipse" du package Car
+df1 <- cbind(st_drop_geometry(Clubs1), st_coordinates(Clubs1))
+dataEllipse(x = df1$X, 
+            y = df1$Y, 
+            center.pch = FALSE, plot.points=FALSE,col = "rosybrown1",
+            levels = .66,xpd=T, # xpd=T permet d'écrire dans les marges
+            add = TRUE)
+
+# Tracé de l'ellipse en 1970-1986 (période 2)
+df2 <- cbind(st_drop_geometry(Clubs2), st_coordinates(Clubs2))
+dataEllipse(x = df2$X, 
+            y = df2$Y, 
+            center.pch = FALSE, plot.points=FALSE,col = "lightsalmon",
+            levels = .66,xpd=T,
+            add = TRUE)
+
+# Tracé de l'ellipse en 1987-2003 (période 3)
+df3 <- cbind(st_drop_geometry(Clubs3), st_coordinates(Clubs3))
+dataEllipse(x = df3$X, 
+            y = df3$Y, 
+            center.pch = FALSE, plot.points=FALSE,col = "brown2",
+            levels = .66,xpd=T, 
+            add = TRUE)
+
+# Tracé de l'ellipse en 2003-2011 (période 4)
+df4 <- cbind(st_drop_geometry(Clubs4), st_coordinates(Clubs4))
+dataEllipse(x = df4$X, 
+            y = df4$Y, 
+            center.pch = FALSE, plot.points=FALSE,col = "brown3",
+            levels = .66,xpd=T, 
+            add = TRUE)
+
+# Tracé de l'ellipse en 2012-2015 (période 5)
+df5 <- cbind(st_drop_geometry(Clubs5), st_coordinates(Clubs5))
+dataEllipse(x = df5$X, 
+            y = df5$Y, 
+            center.pch = FALSE, plot.points=FALSE,col = "brown4",
+            levels = .66,xpd=T, 
+            add = TRUE)
+
+mf_scale(pos="bottomright",lwd=1.5,cex=0.6,unit="km")
+mf_credits("Sources : A. Langar 2018, INS")
+mf_title("Diffusion des clubs de Ligue 1, 1955-2015 : pts moyens/ellipses dév.", cex=0.7)
+```
+:::
+
+------------------------------------------------------------------------
+
+::: {.callout-note title="À propos de ce document"}
+Ce support a été créé pour la semaine de formation franco-tunisienne
+**GEO UNIV'R Tunisie 2024 - "Enseigner la statistique, la cartographie
+et l'analyse spatiale avec R** qui se tient à Sousse en mai 2024.
+:::
+
+#### Références {.unnumbered}
+
+Feuillet, T., Cossart, É., Commenges, H. (2019). Manuel de géographie
+quantitative : Concepts, outils, méthodes. Armand Colin. Chapitre 4 :
+Décrire la localisation des objets géographiques.
+
+Grasland,C. (2000), Cours d'analyse spatiale, Université Paris 7, [en ligne](http://grasland.script.univ-paris-diderot.fr/go303/ch1/doc_ch1.htm){target="_blank"}
+
+Pumain, D., Saint-Julien, T. (2010). Analyse spatiale : Les
+localisations. Armand Colin. Chapitre 2 : Lieux et distribution de
+lieux.
+
+Taylor P.J. (1977). Quantitative Methods in Geography: an introduction
+to Spatial Analysis, Waveland Press, 386 p.
+
+
+------------------------------------------------------------------------
+
+```{r sessionInfo}
+sessionInfo()
+```

@@ -1,0 +1,294 @@
+---
+title: "[MOD3] : Introduction à la régression multiple"
+subtitle: "GEO UNIV'R Tunisie 2024"
+date: "2024-05-17"
+date-format: iso
+author: "Malika Madelin, Claude Grasland,"
+lang: fr
+format:
+  html:
+    embed-resources: true
+    smooth-scroll: true
+    fontsize: 0.9em
+    toc: true
+    toc-depth: 3
+    toc-title: "."
+    bibliography: [bib.bib]
+    crossrefs-hover: false
+    css: custom.css
+    theme: [yeti, style.scss]
+execute:
+  warning: false
+  message: false 
+knitr:
+  opts_chunk:
+    out.width: "100%"
+editor_options: 
+  chunk_output_type: console
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+```{r}
+# liste des packages nécessaires
+liste_packages <- c("knitr", "readxl", "corrplot")
+# liste des éventuels packages à installer (= ceux qui ne sont pas déjà installés)
+new_packages <- liste_packages[!(liste_packages %in% installed.packages()[,"Package"])]
+# s'il y en a, installation 
+if(length(new_packages)) install.packages(new_packages)
+```
+
+```{r}
+# Importantc: définit les options pr défaut
+knitr::opts_chunk$set(echo = TRUE,  # n'affiche pas le code R
+                      warning = FALSE,
+                      message = FALSE)
+library(knitr)  # Pour afficher les tableaux avec kable
+library(readxl) # Pour importer le fichier Excel
+library(corrplot) # Pour visualiser une matrice de corrélation facile à lire
+```
+
+# 1.DONNEES
+
+Nous allons reprendre l'exemple des données climatiques sur la Tunisie.
+
+## Importation des données
+
+```{r, echo=FALSE}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+#| output-location: column
+# Importe les données
+library(readxl)
+tab_depart <-read_xlsx(path = "data/TUN-CLIMAT/tun_climat.xlsx",
+              sheet = "data")
+kable(tab_depart, caption = "Tableau de données")
+```
+
+## Sélection de variables
+
+Pour la suite de l'exercice, nous retenons seulement quelques variables
+ou colonnes du tableau de départ : des identifiants (code, nom), des
+variables qu'on va chercher à expliquer (tmoy, tmin, tmax, prec) et des
+variables a priori explicatives (lat, lon, alt).
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+#| output-location: column
+don <- tab_depart[,c("code", "nom", "tmoy", "tmin", "tmax", "prec", "lat", "lon", "alt")]
+don_reg <- don[, c("tmoy", "lat","lon","alt")]
+```
+
+L'objectif de cet exercice est de chercher à expliquer les variations
+des températures moyennes des stations par les 3 variables explicatives
+: *don_reg*. Mais tout d'abord, commençons par une première étape,
+l'exploration visuelle des relations entre ces variables.
+
+::: {.callout-note icon="false" collapse="true"}
+## Quelles sont -par ex- les **fonctions R** à utiliser pour étudier une relation ?
+
+?plot()\
+?cor.test()\
+?lm()
+
+Les ? devant les fonctions permettent d'obtenir de l'aide sous R.
+:::
+
+# 2. EXPLORATION DE LA RELATION
+
+La manière la plus simple d'analyser la relation entre Y et plusieurs
+X1:n est d'utiliser un simple plot
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+#| output-location: column
+
+plot(don_reg)
+```
+
+Il est possible aussi d'afficher la matrice des coefficients de
+corrélation entre ces 4 variables (cf. cours précédent) :
+
+```{r}
+#| attr-input: "style='font-size: 2em'"
+#| attr-output: "style='font-size: 1em'"
+#| echo: true
+#| output-location: column
+cor(don_reg)
+```
+
+Ou encore d'utiliser la fonction le package `corrplot()` et sa fonction,
+pour faciliter la lecture des relations
+
+```{r}
+library(corrplot)
+# Ce graphique utilise les données de la matrice de corrélation : cor(don_reg)
+corrplot(cor(don_reg), type = "lower", 
+         diag=FALSE, tl.col = "dark grey", tl.srt = 45,addCoef.col = TRUE)
+```
+
+<br>
+#### \> Existe-t-il des **relations significatives** ? quelle est la variable la plus fortement corrélée avec *tmoy* ?
+
+# 3. VERS LA REGRESSION MULTIPLE PAR LA METHODE "STAGEWISE" ou comment construire un modèle petit à petit
+
+Nous allons construire un modèle permettant d'expliquer les variations
+des températures moyennes en Tunisie (Y) à partir de plusieurs facteurs
+explicatifs (X1:n). La régression multiple "stagewise" nous permettra de
+revoir les étapes de la régression simple et de construire un modèle
+multiple. Voici les étapes : 
+
+- quelle est la variable X1 (parmi les X)
+qui explique le plus *tmin* (Y) ? on modélise cette relation *modele1*
+;
+
+- une fois cette relation modélisée, quelle est la variable X2 (parmi
+les X - X1) qui explique le plus la variation des résidus de *modele1* ?
+on construit alors un *modele2* ; 
+
+- etc.
+
+## modele1
+::: 
+[ATTENTION, texte à trou, à vous de le
+remplir]{style="{color:\"red\"}"}\
+Rappel : on écrit la variable à expliquer \[Y\] en fonction \[\~\] de la
+variable explicative \[X\], soit lm(Y\~X). Choisir ici les variables en
+question.
+
+```{r}
+#| eval: FALSE
+
+modele1 <- lm(...)
+summary(modele1)
+```
+
+Est-ce que la relation est significative ? Quel est son sens ? Quelle
+est son intensité ?\
+Que doit-on vérifier au-delà de la *p-value* et de la significativité
+pour valider le modèle ?\
+Quel est le pouvoir explicatif de cette relation ?
+
+Notez que le R ajusté est utile lorsque l'on compare plusieurs modèles
+sur un même jeu de données.
+
+## modele2
+
+```{r}
+#| eval: FALSE
+
+corrplot(cor(don_reg[,c("...", "...")], 
+             m1$residuals), 
+         addCoef.col = TRUE)
+modele2 <- lm(m1$residuals ~ don_reg$...)
+summary(modele2)
+```
+
+Si la nouvelle variable est significative avec ce qui n'a pas été
+expliqué par le premier modèle (= les résidus), alors on continue.
+
+## modele3
+
+Il ne reste plus qu'une variable à tester sur les résidus.
+
+```{r}
+#| eval: FALSE
+
+modele3 <- lm(m2$residuals ~ don_reg$...)
+summary(m3)
+```
+
+Chacune des variables retenues, *in fine*, explique significativement
+une partie non expliquée auparavant. Il s'agit à présent de combiner
+l'ensemble des variables dans un seul **modèle de régression multiple**.
+
+# 4. REGRESSION MULTIPLE LINEAIRE
+
+Rappel : Pour construire un modèle linéaire simple `lm(Y~X)`.\
+Pour construire un modèle linéaire multiple : `lm(Y\~X1+X2+X3...)`
+
+Construire alors le modèle multiple à partir des variables sélections
+précédemment.
+
+```{r}
+#| eval: FALSE
+
+modele_final <- lm(tmoy ~ ... + ..., data=don_reg)
+summary(modele_final)
+plot(modele_final)
+
+```
+
+#### \> Quelles sont vos conclusions ?
+
+#### \> Quelle est l'**équation du modèle** ?
+
+#### \> Et les **résidus** ?
+
+# 5. COLINEARITÉ ENTRE VARIABLES ou comment, plus largement, sélectionner les variables explicatives ?
+
+Même si ce module n'est qu'une introduction à la régression multiple
+linéaire, nous aimerions aborder la notion de la multicolinéarité ou la
+colinéarité entre les variables explicatives (c'est lorsqu'il existe une
+forte relation linéaire entre 2 ou + variables explicatives). Cette
+colinéarité est parfois préjudiciable, elle entraîne une instabilité
+dans l'estimation des coefficients et cela peut aller jusqu'à fausser
+les tests statistiques. Une partie de l'explication apportée par une
+variable peut être déjà prise en compte dans une autre. L'idéal serait
+que les variables soient indépendantes (cf. à ce propos
+l'[article](https://freakonometrics.hypotheses.org/61090) du blog de
+Freakonometrics d'Arthur Charpentier).
+
+L'objectif principal d'une modélisation à partir de variables est de
+rechercher un équilibre entre le modèle le plus simple et le meilleur
+ajustement.\
+Plusieurs méthodes cherchent à sélectionner au mieux les variables : 
+
+- approche exhaustive : toutes les combinaisons possibles sont testées et
+on choisit la "meilleure" ; rapidement très lourde à mettre en place ; 
+
+- approche *backward* : on met l'ensemble des variables et petit à petit
+on enlève celle(s) avec la plus grande valeur de *p-value* jusqu'à
+n'avoir que des fortement significatives ; 
+
+- approche *forward* : c'est l'inverse, on ajoute petit à petit les variables les plus significatives ; 
+
+- approche *stepwise* : un mélange des 2 précédentes ; 
+
+- et l'approche *stagewise* que nous avons vue dans la section précédente.
+
+## 6. COMPARAISON DE MODÈLES
+
+Plusieurs critères permettent de comparer plusieurs modèles, les plus
+connus étant AIC (*An Information Criterion* d'Akaike) et le BIC
+(Bayesian Information Criterion), basés sur des compromis : plus les
+valeurs sont petites, plus le modèle est adapté. Sous `R`:
+
+```{r}
+#| eval: FALSE
+
+AIC(modele)
+BIC(modele)
+```
+
+Si vous hésitez entre 2 modèles (2 combinaisons de variables), vous
+pouvez tester par une *analyse de la variance* les 2 modèles. En
+d'autres termes, vous cherchez à savoir l'influence d'une ou de
+plusieurs variables dans un modèle, tout en prenant en considération les
+autres.
+
+```{r}
+#| eval: FALSE
+
+anova(mod1,mod2)
+```
+
+Si la significativité est supérieure à 0,05 (ou 0,10), alors vous pouvez
+conclure que les variables introduites ne contribuent pas
+significativement.

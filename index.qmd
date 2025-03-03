@@ -1,0 +1,142 @@
+---
+title: "GEOUNIV'R 2024"
+subtitle: "Enseigner la statistique, la cartographie et l'analyse spatiale avec R"
+author: "(c) FR CIST - Université Paris Cité - Université de Sfax"
+format: html
+---
+
+
+### Institutions et financement
+
+::: {layout="[70,30]"}
+::: {first-column}
+L'école d'été GEOUNIV'R 2024 a été organisée par la [Fédération de Recherche CIST](https://cist.cnrs.fr/) conjointement par  [le départements de géographie de la FLSH de Universié Sfax](https://flshs.rnu.tn/fra/home) et [l'UFR GHES de l'université Paris-Cité](https://u-paris.fr/ghes/). 
+
+
+Le financement principal a été apporté par les crédits de [l'IDEX Innovation Pédagogique de l'Université Paris-Cité](https://u-paris.fr/appel-a-projets-innovation-pedagogique-2024/)
+
+
+Le projet a été réalisé avec le soutien d'enseignants-chercheurs des laboratoires de recherche [Géographie-cités](https://geographie-cites.cnrs.fr/) et [Prodig](https://www.prodig.cnrs.fr/) et d'ingénieurs des unités de service [Riate](https://riate.cnrs.fr/)  [Geoteca](https://geoteca.u-paris.fr/). 
+
+![](img/logo_cist.png){height=80}  ![](img/logo_geocités.jpg){height=50} ![](img/logo_PRODIG.png){height=50}  ![](img/logo_RIATE.jpg){height=50} ![](img/logo_geoteca.jpg){height=50} 
+:::
+::: {second-column}
+![](img/logo_FLSH.png){width=80} ![](img/logo_GHES.png){width=160}
+
+
+
+![](img/Idex_Fr2030.jpg){width=300}
+
+:::
+:::
+
+
+
+### Objectif
+::: {layout="[70,30]"}
+::: {first-column}
+L' objectif de cette école d'été était de **former des formateurs** en réunissant des enseignants et ingénieurs français et tunisien intéressés par l'usage du logiciel R pour la cartographie, la géomatique, la statistique et l'analyse spatiale.  Les enseignements ont été **co-construits** à partir de données et de questions d'enseignement et de recherche intéressant en premier lieu la Tunisie. Les formateurs français ont apporté leur expertise dans la résolution de ces questions à l'aide du programme R. Une partie des outils de formations avaient été préalablement développée lors de l'[Ecole d'été CIST 2022-2023](https://ee2023.netlify.app/) qui avait réuni des enseignants chercheurs de France et d'Afrique de l'Ouest.
+:::
+
+::: {second-column}
+![](img/logo.png){width=200}
+:::
+:::
+
+
+
+
+
+### Lieu et date
+
+::: {layout="[30,70]"}
+::: {first-column}
+L'école d'été GEONUIV'R 2024 s'est tenue à l'hôtel Sentido Bellevue de Sousse du 12 au 18 Mai 2024; L'hôtel Sentido Bellevue Park est dédié au toursime. Mais offre aussi des salles de réunions pour les congrès et meetings. Il a offert un tarif préférentiel à la formation ce dont nous le remercions.
+:::
+
+::: {second-column}
+
+![](img/sentido-bellevue-park.jpg){width=600}
+
+
+:::
+:::
+
+
+### Comité d'organisation
+
+::: {layout="[30,70]"}
+::: {first-column}
+L'école d'été GEONUIV'R 2024 a été organisé conjointement par la FALSH de l'Université de Sfax, l'Université Paris Cité et la FR 2007 CIST avec le soutien des équipes de recherche SYFACTE, Géographie-cités, Prodig, Geoteca et Riate. Le comité d'organisation était composé de Claude Grasland et Salem Dahech pour l'Université Paris Cité, Riadh Bouaziz et Sami Charfi pour l'Université de Sfax.
+:::
+
+::: {second-column}
+![](img/geounivr_organisation.jpg){width=600}
+:::
+:::
+
+
+
+
+### Participants
+
+
+::: {layout="[30,70]"}
+::: {first-column}
+L'école d'été a rassemblé 34 participants parmi lesquels 9 enseignants-chercheurs ou ingénieurs côté français et 25 enseignants-chercheurs côté tunisien, appartenant aux différents départements de géographie en Tunisie (Sfax, Sousse, Tunis, Manouba et Jendouba).
+:::
+
+::: {second-column}
+![Les 34 participants lors de la cérémonie de clôture](img/geounivr_groupe.jpg){width=600}
+:::
+:::
+
+
+::: {layout="[50,50]"}
+::: {first-column}
+#### France
+1.	Baudet-Michel	Sophie	France
+2.	Dahech	Salem	France
+3.	Grasland	Claude	France
+4.	Guérois	Marianne	France
+5.	Lambert	Nicolas	France
+6.	Madelin	Malika	France
+7.	Marveaux	Elina	France
+8.	Plaisant	Brian	France
+9.	Ysebaert	Ronan	France
+:::
+
+::: {second-column}
+#### Tunisie
+10.	Bouaziz	Riadh	Tunisie
+11.	Charfi	Sami	Tunisie
+12.	Feki	Mohamed	Tunisie
+13.	Yengui	Taher	Tunisie
+14.	Kacem	Abir	Tunisie
+15.	Souissi	Mohamed	Tunisie
+16.	Hammami	Zayed	Tunisie
+17.	Nsiri	Hsan	Tunisie
+18.	Jarraya	Mounir	Tunisie
+19.	Ghribi	Marwen	Tunisie
+20.	Rebei	Hédi	Tunisie
+21.	Zenati	Hedi	Tunisie
+22.	Hamza	Dalel	Tunisie
+23.	Barrani	Yassine	Tunisie
+24.	Ben Fguira	Sami	Tunisie
+25.	Hamila	Hajer	Tunisie
+26.	Heni	Sabeh	Tunisie
+27.	Madani	Wassim	Tunisie
+28.	Saadaoui	Khaoula	Tunisie
+29.	Soudeni	Sghaira	Tunisie
+30.	Euchi	Hamdi	Tunisie
+31.	Ben Romdhan	Safa	Tunisie
+32.	Nasrallah	Wafa	Tunisie
+33.	Abdelkhalak	Abderrahmen	Tunisie
+34.	Chkir Ben Jmâa	Najiba	Tunisie
+:::
+:::
+
+
+
+
+

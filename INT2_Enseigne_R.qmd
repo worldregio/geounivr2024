@@ -1,0 +1,372 @@
+---
+title: "[INT2] : Enseigner avec R"
+subtitle: "GEO UNIV'R Tunisie 2024"
+author: "Claude Grasland"
+date: "2024-05-13"
+date-format: iso
+lang: fr
+format:
+  html:
+    embed-resources: true
+    smooth-scroll: true
+    fontsize: 0.9em
+    toc: true
+    toc-depth: 3
+    toc-title: "."
+    bibliography: [bib.bib]
+    crossrefs-hover: false
+    css: custom.css
+    theme: [yeti, style.scss]
+execute:
+  warning: false
+  message: false 
+knitr:
+  opts_chunk:
+    out.width: "100%"
+editor_options: 
+  chunk_output_type: console
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+## INTRODUCTION
+
+On se propoe de passer en revue l'ensemble du programme de la semaine à travers un exercice pédagogique associant statistique, cartographie, analyse spatiale, modélisation ... Cet exercice correspond typiquement au travail qu'on pourrait donner à des étudiants de licence 2 ou 3 ayant suivi des cours de statistique, cartographie et SIG.
+
+On limite volontairement au minimum le nombre de packages R utilisés, en se limitant ici à deux : readxl et sf. Ceux-ci sont utilisés pour importer/exporter les données statistiques et les données géographiques. 
+
+On propose de réaliser une analyse de la distribution du taux d'équipement en ordinateur dans les délégations d'un gouvernorat en 2004 et 2014. Le programme est rédigé de telle sorte qu'on puisse facilement passer d'un gouvernorat à l'autre.
+
+```{r, echo=F}
+knitr::opts_chunk$set(echo = FALSE,  warning = FALSE, message = FALSE)
+
+# Importe les données
+library(readxl)
+data<-read_xls(path = "data/RP_Tunisie/data/don_del.xls",
+              sheet = "data")
+
+choix_gou <- "Sfax"
+```
+
+A chaque étape, on peut comparer les résultats obtenus en se servant de programmes R et ceux obtenus en se servant des logiciels utilisant la souris comme Excel, Xlstat, Magrit, QGIS, ArCGIS, Philcarto , ...
+
+## (1) DONNEES STATISTIQUES
+
+### Acquisition
+
+-   **Consigne** : Après avoir chargé le tableau excel tun_del_2004.xls, sélectionnez les délégations du gouvernorat de Sfax et construisez un tableau décrivant le nombre ménages et leur équipement en ordinateur en 2004 et 2014 
+
+-   **Résultat** :
+
+```{r}
+# Importe les données
+library(readxl)
+data<-read_xls(path = "data/RP_Tunisie/data/don_del.xls",
+              sheet = "data")
+
+# Sélectionne les lignes
+don <- data[data$gou_nom==choix_gou,]
+
+# simplifie le code
+don$code<-substr(don$del_code,7,8)
+
+# Calcule le taux d'équipement
+don$equip_2004 <- 100*don$ordin_2004/don$menag_2004
+don$equip_2014 <- 100*don$ordin_2014/don$menag_2014
+
+# Sélectionne les colonnes
+don <- don[,c("code","del_nom_fr","del_nom_ar","gou_cap","menag_2004","menag_2014", "ordin_2004", "ordin_2014")]
+
+# renomme
+names(don)<-c("code","nomfr","nomar","cap", "men04","men14","equ04","equ14")
+
+# Affiche
+library(knitr)
+kable(don, digits=0,
+      main = "Tableau 1 : Ménages et équipements")
+```
+
+
+### Transformation
+
+-   **Consigne** : Ajoutez deux colonnes décrivant le taux d'équipement en % des ménages en 2004 et 2014 
+
+```{r}
+don$pct04<-100*don$equ04/don$men04
+don$pct14<-100*don$equ14/don$men14
+kable(don, 
+      main = "Tableau 2 : taux d'équipement",
+      digits=c(0,0,0,0,0,0,0,0,1,1))
+```
+
+
+
+
+
+
+## (2) STATISTIQUE UNIVARIEE
+
+### Paramètres principaux
+
+-   **Consigne** : Etudiez l'évolution  du taux d'équipement des ménages en ordinateur par délégation en 2004 et 2014 en vous servant de paramètres principaux (valeurs centrales, paramètres de dispersion). Puis établissez deux histogrammes permettant de visualiser l'évolution.
+
+```{r}
+# sélectionne les variables
+sel <- don[,c("pct04","pct14")]
+
+# Tableau standard
+quant<-apply(sel,2,quantile)
+moy<-apply(sel,2,mean)
+ect<-apply(sel,2,sd)
+cv<-100*ect/moy
+tab<-rbind(quant,moy,ect,cv)
+row.names(tab) <-c("Minimum","Q1","Médiane","Q3","Maximum","Moyenne","Ecart-type", "C.V. (%)")
+
+kable(tab, caption="Paramètres principaux", digits =1,
+      col.names = c("Situation en 2004","Situation en 2014"),
+      )
+```
+
+
+### Histogrammes
+
+-   **Consigne** : Etablissez deux histogrammes permettant de visualiser la forme de la distribution du taux d'équipement et son évolution entre 2004 et 2014.
+
+```{r, fig.width=8, fig.height=8}
+par(mfrow=c(2,1))
+
+mintot <-min(c(sel$pct04, sel$pct14))
+maxtot <-max(c(sel$pct04, sel$pct14))
+
+# Histogramme
+hist(sel$pct04,
+     breaks=quantile(sel$pct04),
+     xlim=c(mintot,maxtot),
+     col="gray80",
+     main= "Situation en 2004",
+     xlab = "Taux d'équipement (%)",
+     ylab = "Fréquence moyenne")
+rug(sel$pct04, col="black", lwd=2)
+lines(density(sel$pct04), lty=3,lwd=2)
+
+hist(sel$pct14,
+    breaks=quantile(sel$pct14),
+     xlim=c(mintot,maxtot),
+     col="gray80",
+     main= "Situation en 2014",
+     xlab = "Taux d'équipement (%)",
+     ylab = "Fréquence moyenne")
+rug(sel$pct14, col="black", lwd=2)
+lines(density(sel$pct14), lty=3,lwd=2)
+```
+
+
+## (3) DONNEES GEOMETRIQUES
+
+
+### Acquision 
+
+-   **Consigne** : Après avoir chargé le shapefile *Tunisie2014_del.shp*, extraire les délégations correspondant à votre gouvernorat et afficher le fonds de carte avec le code des unités.
+
+```{r}
+# Chargement du package spatial features
+library(sf)
+
+# Importation du fonds de carte complet
+map<-st_read("data/RP_Tunisie/geom/map_del.geojson", quiet=T)
+
+# Selection d'un gouvernorat
+map <- map[map$gou_nom == choix_gou,]
+
+# simplifie le code
+map$code <- substr(map$del_code,7,8)
+
+# ne conserve que le code,la capitale et la géométrie
+map <- map[,c("code","gou_cap","geometry")]
+
+
+# Affichage du fonds de carte
+par(mar=c(0,0,3,0))
+plot(map$geometry, 
+     col="gray90",
+     main = "Code des unités spatiales de la zone d'étude")
+
+# Ajout du code des unités spatiales
+coo<-st_coordinates(st_centroid(map))
+text(coo, map$code, cex=0.5,col="black",)
+
+```
+
+### Transformation
+
+-   **Consigne** : ajoutez une colonne correspondant à la distance en km au chef-lieu de gouvernorat et faites en une cartographie en prenant comme bornes de classes 0, 5, 10, 20, 40, 80, 160 km. 
+
+```{r}
+cap<-map[map$gou_cap==1,]
+map$dist<-as.numeric(st_distance(st_centroid(map),st_centroid(cap)))/1000
+plot(map["dist"], main="Distance au chef-lieu (en km)",
+     breaks=c(0,5, 10,20,40,80, 160),
+     pal=c("gray10", "gray30","gray50","gray70","gray90", "gray100"),)
+```
+
+
+
+
+
+## (4) CARTOGRAPHIE THEMATIQUE
+
+
+### Cartes de stock
+
+-   **Consigne** : Réalisez deux cartes de stock décrivant le nombre de ménages équipés en ordinateur en 2004 et 2014. Vous utiliserez la même échelle de taille pour rendre les deux cartes comparables.
+
+
+```{r}
+library(mapsf)
+map<-map[,c("code","geometry")]
+map_don <- merge(map, don, by="code")
+maxequ<-max(don$equ04,don$equ14)
+
+par(mfrow=c(1,2))
+mf_map(map_don$geometry, col="white")
+mf_map(map_don, type="prop", var="equ04",
+       val_max = maxequ, inches=0.1, col="gray20", 
+       leg_title = "Nb. de ménages équipés",)
+mf_layout(title="2004",frame = T, credits = "Source : INS Tunisie")
+
+mf_map(map_don$geometry, col="white")
+mf_map(map_don, type="prop", var="equ14",
+       val_max = maxequ, inches=0.1, col="gray20",
+       leg_title = "Nb. de ménages équipés")
+mf_layout(title="2014",frame = T, credits = "Source : INS Tunisie")
+
+
+```
+
+
+### Cartes de ratio (choroplèthes)
+
+-   **Consigne** : Réalisez deux cartes de taux décrivant le nombre de ménages équipés en ordinateur en 2004 et 2014. Pour les rendre comparables vous utiliserez dans chaque carte une partition en quintiles (5 classes d'effectifs égaux)
+
+
+```{r}
+library(mapsf)
+map_don <- merge(map, don, by="code")
+maxequ<-max(don$equ04,don$equ14)
+
+par(mfrow=c(1,2))
+mf_map(map_don, type="choro", var="pct04",
+       breaks = "quantile",nbreaks = 5, pal ="Grays",
+       leg_title = "% ménages équipés",leg_val_rnd = 1)
+mf_layout(title="2004",frame = T, credits = "Source : INS Tunisie")
+
+mf_map(map_don, type="choro", var="pct14",
+       breaks = "quantile",nbreaks = 5, pal ="Grays",
+       leg_title = "% ménages équipés",leg_val_rnd = 1)
+mf_layout(title="2014",frame = T, credits = "Source : INS Tunisie")
+
+```
+
+
+## (5) STATISTIQUES BIVARIEES 
+
+### Nuage de points
+
+- **Consigne** : Tracez un nuage de point montrant l'évolution de l'indicateur entre les deux dates.
+
+```{r}
+# prépration de l'analyse
+code<-don$code
+nomfr<-don$nomfr
+nomar<-don$nomar
+X<-don$pct04
+Y<-don$pct14
+tab<-data.frame(code,nomfr, nomar,X,Y)
+
+# Diagramme
+plot(tab$X,tab$Y, 
+     pch=20,
+     cex=0.8,
+     col="red",
+     main = "Evolution du taux d'équipement",
+     xlab="tx. equipement. 2004",
+     ylab ="tx. equipement 2014")
+text(tab$X,tab$Y,tab$code, 
+     pos=2,
+     cex=0.5,
+     col="blue")
+
+
+
+```
+
+### Analyse de la corrélation
+
+- **Consigne** : calculez les coefficients de corrélation de Pearson et Spearman et testez leur sgnificativité.
+
+```{r}
+cor.test(X,Y, method="pearson")
+cor.test(X,Y, method="spearman")
+```
+
+### Droite de régression
+
+- **Consigne** : calculez l'equation de la droite de régression et tracez- là sur le graphique.
+
+```{r}
+modreg <- lm(Y~X)
+summary(modreg)
+plot(tab$X,tab$Y, 
+     pch=20,
+     cex=0.8,
+     col="red",
+     main = "Droite de régression",
+     xlab="tx. equipement. 2004",
+     ylab ="tx. equipement 2014")
+
+abline(modreg,col="blue",lwd=1)
+
+```
+
+### Analyse des résidus
+
+- **Consigne** : Calculez les valeurs théoriques prévus par le modèle de régression et les résidus. Affichez le tableau correspondant après l'avoir trié par ordre de résidus croissants.
+
+```{r}
+tab$Y_est <- modreg$fitted.values
+tab$Y_res <- modreg$residuals
+tab<-tab[order(tab$Y_res),]
+kable(tab, digits=1)
+```
+
+### Cartographie des résidus
+
+- **Consigne** : Cartographiez les résidus après les avoir standardisés.
+
+
+
+```{r}
+library(mapsf)
+
+# Standardisation des résidus
+tab$Y_res_std<-tab$Y_res/sd(tab$Y_res)
+
+# Jointure avec la carte
+map<-map[,c("code","geometry")]
+map_reg <- merge(map, tab, by="code")
+
+# Choix de la palette et des classes
+library(RColorBrewer)
+mypal<-brewer.pal(n = 6, name = "RdYlBu")
+mybreaks = c(-10, -2,-1,0,1,2,10)
+
+mf_map(map_reg, type="choro", var="Y_res_std",
+       pal = mypal, breaks=mybreaks,
+       leg_title = "Résidus standardisés",leg_val_rnd = 1)
+mf_layout(title="Ecarts à la tendance 2004-2014",frame = T, credits = "Source : INS Tunisie")
+
+```
+
+
+

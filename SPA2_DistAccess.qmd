@@ -1,0 +1,1219 @@
+---
+title: "[SPA2] Des distances à l'accessibilité spatiale"
+subtitle: "GEO UNIV'R Tunisie 2024"
+date: "05/16/2024"
+author: "Marianne Guérois, Malika Madelin"
+format:
+  html:
+    embed-resources: true
+    theme: yeti
+    smooth-scroll: true
+    fontsize: 0.9em
+    toc: true
+    toc-depth: 2
+    toc-title: "."
+    bibliography: [bib.bib]
+    css: custom.css
+    crossrefs-hover: false
+execute:
+  warning: false
+  message: false 
+  cache: false   
+knitr:
+  opts_chunk:
+    out.width: "100%"
+editor_options: 
+  chunk_output_type: console
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+![](img/DistAccess_header2.png)
+
+# Objectifs de la séance et mise en place du module
+
+Ce deuxième module d'analyse spatiale est construit autour des notions de **distance** et d'**accessibilité** qui sont étroitement liées :
+
+- La **distance** est une mesure de l'écart spatial, de la séparation entre deux lieux. Derrière la simplicité apparente de sa définition, cette notion peut être appréhendée différemment selon les manières **d'évaluer le "coût" de l'éloignement** (en km, en temps, en énergie, ...), le **mode de déplacement emprunté** (en voiture, à pieds, en train...) ou encore le **type d'itinéraire privilégié** (le plus court chemin ? celui qui permet d'éviter les plus fortes pentes ? etc.). Parce qu'elles peuvent devenir complexes à collecter quand les lieux sont trop nombreux, ces distances "réelles" sont souvent estimées à l'aide de mesures simplifiées qui reposent sur les coordonnées des lieux et sur le calcul de distances théoriques entre ces coordonnées. 
+ 
+- L'**accessibilité** correspond à la "plus ou moins grande facilité avec laquelle des lieux peuvent être atteints" ([Chapelon, 2004](https://hypergeo.eu/accessibilite/){target="_blank"}). Cette facilité repose sur **plusieurs dimensions** (performance des transports, capacités des individus, capacités d'accueil des services et équipements...). Mais elle dépend toujours au moins en partie de la distance physique entre la population inégalement répartie qui a besoin d'une ressource (un service de santé, un commerce, une école, un emploi...) et les lieux où ces ressources sont inégalement distribuées. C'est pourquoi de nombreux indicateurs d'accessibilité découlent directement de la manipulation et du résumé de matrices de distance.
+
+**Ce que vous allez apprendre à faire dans cette séance** : 
+
+- Analyser l'écart entre les distances estimées à l'aide de fonctions mathématiques (en particulier la distance euclidienne, i.e. distance à vol d'oiseau) et les distances sur réseau routier obtenues à partir du calculateur d'itinéraire OSRM : quand on n'a pas de données sur les distances routières, **dans quelle mesure peut-on les estimer à partir des distances théoriques ?**
+
+- Manipuler ces valeurs de distance (observées ou théoriques) pour **construire des indicateurs d'accessibilité spatiale**, **comparer des scénarios d'implantation de nouveaux services/équipements**, à partir de différents critères de localisation optimale.
+
+### Pré-requis méthodologiques
+
+- Sur l'information géographique : définition des coordonnées spatiales d'objets géographiques
+- En statistiques : résumé d'une distribution statistique univariée, construction d'un modèle de régression linéaire 
+
+### Packages utilisés
+
+- **`sf`** : importer, manipuler et exporter des données géographiques vectorielles.<span style="color:blue;"> vu LUN1, MAR1... </span>
+- **`leaflet`** : pour réaliser une carte interactive <span style="color:blue;"> vu LUN3, MAR3... </span> 
+- **`mapsf`** : pour la cartographie thématique <span style="color:blue;"> vu MAR3 </span> 
+- **`mapview`** : pour une cartographie interactive élémentaire <span style="color:blue;"> vu MAR3 </span>
+- **`osrm`** : pour récupérer les valeurs de distance routière sur réseau de l'interface OSRM, construire des isochrones <span style="color:blue;">vu LUN3</span>
+- **`units`** : pour modifier des unités de mesure (temps, espace)<span style="color:blue;"> vu MAR1</span>
+- **`kableExtra`** : mise en forme soignée des tableaux<span style="color:blue;"> vu MAR1</span>
+
+**Installation** (si le package n'est pas déjà installé sur votre machine) :
+```{r, cache = T, message=F}
+# liste des packages nécessaires
+liste_packages <- c("dplyr", "sf", "mapsf", "mapview", "osrm", "leaflet", "units","kableExtra")
+# liste des éventuels packages à installer (= ceux qui ne sont pas déjà installés)
+new_packages <- liste_packages[!(liste_packages %in% installed.packages()[,"Package"])]
+# s'il y en a, installation 
+if(length(new_packages)) install.packages(new_packages)
+```
+
+**Chargement** des packages nécessaires :
+```{r, cache = T,message=F}
+library(dplyr)
+library(sf)
+library(mapsf)
+library(units)
+library(leaflet)
+library(mapview)
+library(osrm)
+library(kableExtra)
+```
+
+
+## Les données utilisées dans ce module
+
+### Les villes tunisiennes et les découpages administratifs tunisiens (cf SPA1)
+
+::: {.callout-note collapse="true"}
+## Code R si vous devez réimporter ces données
+
+**Les villes tunisiennes (source : Africapolis)**
+```{r}
+vil <- st_read(dsn = "data/SPA//vil.gpkg", quiet=TRUE)
+```
+
+**Fond de carte des délégations, gouvernorats et régions (source : INS & Syfacte/Riate)**
+```{r}
+del <- st_read("data/SPA/tun_admin.gpkg", layer = "delegation", quiet = TRUE)
+del <- del[!duplicated(del$del_code),]
+gou <- st_read("data/SPA/tun_admin.gpkg", layer = "gouvernorat", quiet = TRUE)
+reg <- st_read("data/SPA/tun_admin.gpkg", layer = "region", quiet = TRUE)
+```
+::: 
+
+**Les populations des délégations (source : INS), à joindre aux géométries déjà importées**
+```{r}
+popdel <- read.csv(file = "data/SPA/don_del.csv", header = TRUE, sep= ";", encoding = "UTF-8")
+# NB : dans le fichier don_del.csv, correction du code (del_code) de Zarzouna : TN.BZ.JA au lieu de TN.BZ.ZA (dans le fichier del)
+
+del <-  merge(x = del[,"del_code"],  # L'objet sf (seulement le champ del_code)
+              y = popdel,          # le data.frame
+              by.x = "del_code",  # identifiant dans x
+              by.y = "del_code",  # identifiant dans y
+              all.x = TRUE         # conserver toutes les lignes
+              )
+
+del <- del[,c("del_code","del_nom_fr","del_nom_ar","popto_2014")]
+```
+
+**Fond de carte et population 2004 des secteurs (source : INS)**
+```{r}
+secteurs <- st_read("data/SPA/SPA2/secteurs.gpkg", quiet=TRUE)
+```
+
+
+### Les universités tunisiennes (source : OSM)
+
+Le fichier contient les 10 universités extraites de la base OSM (à partir de la catégorie *amenity=university*), cette liste ayant été vérifiée à partir de [Wikipedia](https://fr.wikipedia.org/wiki/Liste_des_universit%C3%A9s_en_Tunisie) (consulté le 3 mai 2024). La localisation d'une université dans chaque ville est associée au point correspondant à une des entrées du site principal (à consolider !).
+
+```{r}
+univ <- st_read(dsn = "data/SPA/SPA2/univOSM.gpkg", quiet=TRUE)
+```
+
+\
+\
+
+
+# **1. Calcul de distances théoriques, comparaison avec les distances sur réseau routier**
+
+
+## Pour commencer, de Tunis à Ben Guerdane... 
+
+### Comment mesurer la distance à vol d'oiseau entre ces deux villes ? Quel est l'écart par rapport à la distance routière ? 
+
+::: {.callout-note collapse="true"}
+## Définition : qu'est-ce qu'une métrique euclidienne ? rectilinéaire ? comment estimer une distance théorique entre deux lieux ?
+
+::: {layout="[40,60]"}
+::: {first-column}
+\
+\
+De manière générale, une **métrique** est une fonction mathématique qui permet d'associer à tout couple de coordonnées (i,j) une mesure de distance Dij.   
+\
+La plus connue et la plus fréquemment utilisée est la **métrique euclidienne**, mais il en existe d'autres (métrique rectilinéaire, orthodromique...) qui peuvent s'avérer plus adaptées selon les contextes et les objectifs de mesure.
+\
+\
+\
+\
+\
+\
+Source de la figure : Pumain D., Saint-Julien T., 2010, *Analyse spatiale : les localisations*, Paris : Cursus Armand Colin, p.31.
+:::
+::: {second-column}
+![](img/Metriques.png)
+:::
+:::
+:::
+
+
+::: {layout="[60,40]"}
+::: {first-column}
+
+D'après le service de calcul d'itinéraire OSRM, l'itinéraire routier le plus court par la route pour aller de l'agglomération de Tunis à celle de Ben Guerdane fait 550 km. 
+\
+\
+<span style="color:blue;">**Dist_rout(Tunis-BenG) = 550 km**</span>\
+\
+Par comparaison, quelle est la distance à vol d'oiseau entre ces deux villes ? et la distance rectilinéaire ? quel est l'écart entre distance routière et distances estimées ?
+\\<br>
+X_Tunis = 4 342 371 m, Y_Tunis = 1 525 005 m\
+X_BenG = 4 434 680 m, Y_BenG = 1 124 046 m\
+<br>
+<span style="color:red;">**Dist_eucli(Tunis-BenG) = 411 km**</span>\
+La distance euclidienne sous-estime de 34% la distance routière.\
+<span style="color:green;">**Dist_recti(Tunis-BenG) = 493 km**</span>\
+La distance rectilinéaire sous-estime de 12% la distance routière.
+:::
+::: {second-column}
+![](img/OSRM_Tunis_BenGuerdane_2.png){width="20%"}
+
+:::
+::: 
+
+::: {.callout-note collapse="true"}
+## Code pour extraire les coordonnées des deux villes, puis calculer la distance à vol d'oiseau et la distance rectilinéaire 
+```{r, eval=FALSE}
+# On extrait les coordonnées projetées (crs=3035) de Tunis et de Ben Guerdanne 
+# à l'aide de la fonction st_coordinates() utilisée dans SPA1 pour préparer le calcul du point moyen
+coords <- data.frame(Xtunis = st_coordinates(vil[vil$Nom=="Tunis",])[,1], # pour extraire X
+                     Ytunis = st_coordinates(vil[vil$Nom=="Tunis",])[,2], # pour extraire Y
+                     Xbeng = st_coordinates(vil[vil$Nom=="Ben Guerdane",])[,1],
+                     Ybeng = st_coordinates(vil[vil$Nom=="Ben Guerdane",])[,2],stringsAsFactors = FALSE)
+
+# Distance routière d'après OSRM : fonction osrmTable
+distrout <- osrmTable(src=vil[vil$Nom=="Tunis",],
+                      dst=vil[vil$Nom=="Ben Guerdane",],
+                      measure = "distance")
+distrout <- (distrout$distance/1000)
+
+# Calcul de la distance euclidienne (à vol d'oiseau)
+disteucl <- round((sqrt((coords$Xtunis-coords$Xbeng)^2
+                                   +(coords$Ytunis-coords$Ybeng)^2)/1000),0)
+
+# Calcul de la distance rectilinéaire
+distrecti <- round((abs(coords$Xtunis-coords$Xbeng)
+                             + abs(coords$Ytunis-coords$Ybeng))/1000,0)
+
+# Ecart distance routière/distance euclidienne
+diff_routeucli <- round((distrout[1]-disteucl[1])/disteucl*100,1) 
+
+# Ecart distance routière/distance rectilinéaire
+diffrel_routerecti <- round((distrout[1]-distrecti[1])/distrecti*100,1)
+```
+:::
+
+
+
+## Construire une matrice des distances routières via OSRM
+
+Calcul d'une **matrice des distances routières** à l'aide de la fonction **`osrmTable`** d'**`OSRM`**
+```{r}
+# Pour avoir les noms des villes comme identifiants de la future matrice, au lieu d'avoir des indices des colonnes et des lignes
+rownames(vil) <- vil$Nom
+# Calcul d'une matrice de distances routières via OSRM
+matdist_osrm <- osrmTable(loc=vil,
+                          measure="distance")
+# cette matrice n'est pas tout à fait symétrique, même si les différences sont infimes
+```
+Le résultat est une liste avec 3 informations : la matrice des distances routières, les coordonnées des sources et celles des destinations.
+
+Transformation en **table de liens**, suppression lignes i=j, distance en km (+ arrondi à l'unité)
+```{r}
+# suppression des distances sur la diagonale supérieure (en faisant l'hypothèse que Distij~Distji)
+matdist_osrm$distances[upper.tri(matdist_osrm$distances)] <- NA
+# transformation d'une matrice en tableau XY
+distrout <-as.data.frame.table(matdist_osrm$distances)
+# ajout des noms de colonnes
+names(distrout) <- c("i","j","distrout")
+# suppression des valeurs manquantes (l'ancienne partie supérieure de la matrice)
+distrout <- na.omit(distrout)
+# suppression lignes i=j (distance d'une ville à elle-même)
+distrout <- distrout[distrout$distrout!=0,]
+# distance en km (+ arrondi à l'unité)
+distrout$distrout <- round(distrout$distrout/1000,0)
+
+# importation directe du tableau de données, au cas où la connexion à OSRM serait trop longue...
+# distrout <- read.csv2("data/SPA2/distrout_vil.csv")
+```
+
+
+## Construire une matrice de distance euclidienne (à vol d'oiseau) entre les villes
+
+Construction d'une **matrice des distances euclidiennes** à l'aide de **`st_distance()`** de **`sf`**
+```{r}
+# calcul de la distance euclidienne entre les villes
+matdist_eucli <- st_distance(vil) 
+
+# n.b.: comme on souhaite avoir une matrice carrée (les lieux en ligne sont identiques aux lieux en colonne), on n'a pas besoin de préciser l'identité des lieux x et y. Sinon on écrirait 'st_distance(x=vil,y=vil)'
+
+# le résultat est une matrice. Par exemple ici si on prend les 5 premières villes :
+matdist_eucli[1:5,1:5]
+```
+
+Notez que les distances sont exprimées dans l'unité du système de coordonnées de référence, en l'occurrence ici en mètres.
+
+Comme vu dans LUN3 : **amélioration de l'affichage** de la matrice 
+```{r}
+# transformation des distances en km
+matdist_eucli <- set_units(matdist_eucli, "km")
+# et arrondi à l'unité kilométrique
+matdist_eucli <- round(matdist_eucli, 0)
+# ajout des noms de villes en identifiants 
+colnames(matdist_eucli) <- vil$Nom
+row.names(matdist_eucli) <- vil$Nom
+# retrait de l'unité de mesure
+matdist_eucli <- drop_units(matdist_eucli)
+
+matdist_eucli[1:5,1:5]
+```
+
+
+Transformation en **table de liens**, suppression lignes i=j, distance en km
+```{r}
+# suppression des distances sur la diagonale supérieure 
+matdist_eucli[upper.tri(matdist_eucli)] <- NA
+# transformation d'une matrice en tableau XY
+disteucli <-as.data.frame.table(matdist_eucli)
+# retrait des valeurs manquantes (celles de la diagonale supérieure) 
+disteucli <- na.omit(disteucli)
+# ajout des noms de colonnes
+colnames(disteucli) <- c("i","j","disteucl")
+# suppression des distances nulles (i.e. la distance entre une ville et elle-même)
+disteucli <- disteucli[disteucli$disteucl!=0 ,]
+```
+
+
+## Calcul des distances rectilinéaires entre les villes
+
+On souhaite récupérer les **distances routières, euclidiennes et rectilinéaires dans un même tableau**.
+
+**Jointure** de la table des distances euclidiennes avec la table des distances routières
+```{r}
+# Jointure entre le fichier des distances eucliennes et le fichier des distances routières
+distvil <- merge(distrout, disteucli, 
+           by= c("i","j"))
+
+# Avant de joindre cette table des distances à celle des villes, on récupère les coordonnées des villes (utile pour le futur calcul des distances rectilinéaires)
+vil$X <- st_coordinates(vil)[,1] # pour extraire X
+vil$Y <- st_coordinates(vil)[,2] # pour extraire Y
+
+# Jointure avec la base des villes pour récupérer le nom des villes de destination j et la date à laquelle elles apparaissent dans la base Africapolis
+distvil <- merge(x = distvil, 
+                 y = st_drop_geometry(vil[, c("Nom","Apparition1","X","Y")]), 
+           by.x= "j", by.y= "Nom")
+
+names(distvil)[5:7] <- c("Apparitionj","Xj","Yj")
+
+# Nouvelle jointure pour récupérer le nom des villes d'origine i et la date à laquelle elles apparaissent dans la base Africapolis
+distvil <- merge(x = distvil, 
+           y = st_drop_geometry(vil[, c("Nom", "Apparition1","X","Y")]), 
+           by.x= "i", by.y= "Nom")
+names(distvil)[8:10] <- c("Apparitioni","Xi","Yi")
+```
+
+Ajout à la table des distances des **distances rectilinéaires**
+```{r}
+# Calcul des distances rectilinéaires
+distvil$distrect <- round((abs(distvil$Xi-distvil$Xj)
+                         +abs(distvil$Yi-distvil$Yj))/1000,0)
+
+# Pour réarranger l'ordre des colonnes
+ordre <- c("i","j","Xi","Yi","Xj","Yj","distrout","disteucl","distrect","Apparitioni","Apparitionj")
+distvil <- data.frame(distvil[,ordre]) 
+```
+
+
+# A vous de jouer ! Comparez les distances théoriques aux distances réelles
+
+## Comparaison des **distances euclidiennes et routières**
+
+**Calcul des écarts relatifs entre distances routières et euclidiennes** 
+```{r}
+distvil$diffrel <- round(((distvil$distrout-distvil$disteucl)/
+                            distvil$disteucl)*100,1)
+summary(distvil$diffrel)
+```
+
+<span style="color:blue;">Que vous apprend ce résumé de l'écart relatif entre distances routières et distances euclidiennes ? Quel est l'écart moyen ? A quel itinéraire correspond le plus grand écart ?</span>
+
+**Un modèle pour estimer les distances routières en fonction des distances à vol d'oiseau ?** \
+<span style="color:blue;">Complétez les lignes de ce programme pour construire un modèle de régression linéaire</span> qui estime la distance routière en fonction de la distance euclidienne de la forme Y = a.X + b : **distrout = a.disteucl + b**
+```{r,fig.width=10, fig.height=5, eval=FALSE}
+
+# On crée d'abord un graphique qui représente la distance routière en fonction de la distance euclidenne
+
+plot(... ~ ..., data = ..., pch = 16, cex=0.3, 
+   # Ajout d'un titre principal et des libellés des axes
+     main="Comparaison des distances entre les villes tunisiennes", 
+     xlab = "Distance à vol d'oiseau (en km)", 
+     ylab = "Distance routière (en km)")
+
+# on construit ensuite un modèle de régression linéaire (linear modeling - lm) de la forme : 
+
+modeleucl <- ...(... ~ ..., data=...)
+# comment faire pour avoir un résumé des résultats de la régression ?
+...(modeleucl) 
+# Ajout de la droite de régression entre les 2 distances
+abline(a=modeleucl$coefficients[1], b=modeleucl$coefficients[2], col="blue", lwd=2)
+# La 1ère bissectrice, i.e. l'égalité des distances
+abline(a=0, b=1, col="red", lwd=2)
+
+```
+
+<span style="color:blue;">Que pensez-vous des résultats du modèle qui estime les distances routières en fonction des distances euclidiennes ?</span>
+
+
+
+::: {.callout-note collapse="true"}
+## Une solution possible pour la comparaison des distances euclidiennes/routières
+
+**Que montrent les écarts relatifs entre distances routières et euclidiennes ?** 
+
+```{r}
+distvil$diffrel <- round(((distvil$distrout-distvil$disteucl)/
+                            distvil$disteucl)*100,1)
+summary(distvil$diffrel)
+```
+
+**Que vous apprend ce résumé de l'écart relatif entre distances routières et distances euclidiennes ? Quel est l'écart moyen ? A quel itinéraire correspond le plus grand écart ?**
+
+La distance euclidienne est toujours inférieure à la distance routière.\
+En moyenne, la distance euclidienne sous-estime la distance routière de 31%.\
+3/4 des distances mesurées montrent un écart compris entre 22% et 36% (distances euclidiennes inférieures de 22% à 36% aux distances routières).\
+Le plus grand écart s'observe entre Djerba et les îles Kerkhena (101km en dist euclidienne, 318km par la route).
+
+**Ajustement linéaire entre distances euclidienne et routière**
+```{r,fig.width=10, fig.height=5}
+plot(distrout ~ disteucl, data = distvil, pch = 16, cex=0.3, 
+     # ajout d'un titre principal et des libellés des axes
+     main="Comparaison des distances entre les villes tunisiennes", 
+     xlab = "Distance à vol d'oiseau (en km)", 
+     ylab = "Distance routière (en km)")
+modeleucl <- lm(distrout ~ disteucl, data=distvil)
+summary(modeleucl)
+# Ajout de la droite de régression entre les 2 distances
+abline(a=modeleucl$coefficients[1], b=modeleucl$coefficients[2], col="blue", lwd=2)
+# La 1ère bissectrice, i.e. l'égalité des distances
+abline(a=0, b=1, col="red", lwd=2)
+
+```
+
+**Que pensez-vous des résultats du modèle qui estime les distances routières en fonction des distances euclidiennes ?**
+
+Dist_routière = 1,32 * Dist_eucl - 1,42\
+Chaque fois que la distance euclidienne augmente de 10 km, la distance routière augmente de 13,2 km\
+Coefficient de détermination : R²= 96%\
+p-value : < 2.2e-16
+:::
+
+
+## Comparaison des **distances rectilinéaires/routières**
+
+**Calcul des écarts relatifs entre distances rectilinéaires et euclidiennes**
+```{r, eval= FALSE}
+distvil$diffrel2 <- round(((distvil$...-distvil$...)/
+                             distvil$...)*100,1)
+summary(distvil$diffrel2)
+
+# valeur absolue des écarts
+distvil$absdiffrel2 <- abs(round(((distvil$...-distvil$...)/
+                                    distvil$...)*100,1))
+summary(distvil$absdiffrel2)
+```
+
+Que vous apprend ce résumé de l'écart relatif entre distances routières et distances rectilinéaires ? Quel est l'écart moyen ? A quel itinéraire correspond le plus grand écart ?
+
+**Un modèle pour estimer les distances routières en fonction des distances rectilinéaires ?** \
+<span style="color:blue;">Complétez les lignes de ce programme pour construire un modèle de régression linéaire</span> qui estime la distance routière en fonction de la distance rectilinéaire de la forme Y = a.X + b : **distrout = a.distrect + b**
+```{r, eval=FALSE}
+plot(... ~ ..., data = ..., pch = 16, cex=0.3, 
+     # ajout d'un titre principal et des libellés des axes
+     main="Comparaison des distances entre les villes tunisiennes", 
+     xlab = "Distance à vol d'oiseau (en km)", 
+     ylab = "Distance routière (en km)")
+
+modeldrect <- ...(... ~ ..., data=...)
+...(modeldrect)
+
+# Ajout de la droite de régression entre les 2 distances
+abline(a=modeldrect$coefficients[1], b=modeldrect$coefficients[2], col="blue", lwd=2)
+# La 1ère bissectrice, i.e. l'égalité des distances
+abline(a=0, b=1, col="red", lwd=2)
+
+```
+
+<span style="color:blue;">**Que pensez-vous des résultats du modèle qui estime les distances routières en fonction des distances rectilinéaires ?**</span>
+
+
+::: {.callout-note collapse="true"}
+## Une solution possible pour la comparaison des distances rectilinéaires/routières
+
+**Calcul des écarts relatifs entre distances rectilinéaires et euclidiennes**
+```{r}
+# Les écarts relatifs
+distvil$diffrel2 <- round(((distvil$distrout-distvil$distrect)/
+                             distvil$distrect)*100,1)
+summary(distvil$diffrel2)
+
+# La valeur absolue des écarts relatifs
+distvil$absdiffrel2 <- abs(round(((distvil$distrout-distvil$distrect)/
+                                    distvil$distrect)*100,1))
+summary(distvil$absdiffrel2)
+```
+
+**Que vous apprend ce résumé de l'écart relatif entre distances routières et distances euclidiennes ? Quel écart moyen ? A quel itinéraire correspond le plus grand écart ?**
+
+La distance rectilinéaire est parfois inférieure à la distance routière (par exemple entre Sidi Bouzid et Ksar, distrou : 98 km et distrect : 131 km), parfois supérieure (par exemple entre Kerkenah et Djerba, distrou : 318 km et distrect : 123 km).\
+En moyenne, l'écart relatif absolu entre la distance rectilinéaire et la distance routière est de 13%.\
+Pour 3/4 des itinéraires, on a un écart compris entre 5% et 17%.\
+
+**Ajustement linéaire entre distances rectilinéaire et routière**
+```{r,fig.width=10, fig.height=5}
+plot(distrout ~ distrect, data = distvil, pch = 16, cex=0.3, 
+     # ajout d'un titre principal et des libellés des axes
+     main="Comparaison des distances entre les villes tunisiennes", 
+     xlab = "Distance rectilinéaire (en km)", 
+     ylab = "Distance routière (en km)")
+modeldrect <- lm(distrout ~ distrect, data=distvil)
+summary(modeldrect)
+# Ajout de la droite de régression entre les 2 distances
+abline(a=modeldrect$coefficients[1], b=modeldrect$coefficients[2], col="blue", lwd=2)
+# La 1ère bissectrice, i.e. l'égalité des distances
+abline(a=0, b=1, col="red", lwd=2)
+
+```
+
+**Que pensez-vous des résultats du modèle qui estime les distances routières en fonction des distances rectilinéaires ?**
+
+Dist_routière = 1,01 * Dist_recti + 6,4\
+Coefficient de détermination : R²= 91%\
+p-value : < 2.2e-16
+:::
+
+
+
+## **Pour aller plus loin...**
+
+- **Cours et les applications du module [Distances et accessibilité](https://ee-cist.github.io/SPA2-Distance/){target="_blank"} de l'école d'été du CIST au Bénin (2023)** : entre autres développements, voir les indices d'efficacité du réseau routier créés à partir de la comparaison entre distance euclidienne et distance routière et de la comparaison entre distance et temps de trajet
+
+- **"Tissus" de villes**, réseaux potentiels d'échanges 
+
+::: {layout="[50,50]"}
+::: {first-column}
+Dans l'article [Tissu d'un semis de villes européennes](https://www.researchgate.net/publication/26434016_Tissu_d%27un_semis_de_villes_europeennes){target="_blank"}, C. Rozenblat (1995) proposait une carte originale pour faire ressortir les réseaux potentiels d'échanges entre villes européennes, à différentes échelles. La 1ère carte à droite s'appuie sur deux hypothèses :
+
+- *"Les interactions spatiales [étant] plus importantes entre des villes proches"* (p.23), on peut rendre visible les continuités et discontinuités de la trame urbaine en reliant les villes proches  : *"La distribution des villes dans l’espace, leur espacement et leur agencement peuvent ainsi être à la base d’une réflexion sur leurs pouvoirs collectifs de structuration de l’espace économique, politique et social"* (p.23).
+- Les seuils de proximité varient selon la taille des villes : pour les plus grandes villes, leur rayonnement plus important justifie le choix de seuils de plus grande portée (par exemple, 150 km pour les villes de plus de 100 000 hab., contre 50 km pour l'ensemble des villes de plus de 10 000 hab.).\
+\
+Plus récemment, dans le cadre du *WorldPopProject*, H. Chamberlain (2021) a [cartographié les villes africaines de la base Global Human Settlement](https://x.com/HeatherCh100/status/1463277911880917001){target="_blank"} en reliant chaque centre aux 20 villes les plus proches, et en faisant varier la teinte de chaque lien en fonction de l'espacement observé. Le résultat fait ressortir la position relative de chaque ville, selon qu'elle s'inscrit dans une trame urbaine très dense (tons clairs) ou qu'elle est beaucoup plus isolée.
+
+:::
+
+::: {second-column}
+![](img/Rozenblat1.jpeg){width="80%"}
+![](img/ReseauxVillesHeatherChamberlain.png){width="80%"}
+:::
+:::
+
+
+::: callout-tip
+## Un "tissu" de villes tunisiennes ?
+
+**Vous pouvez construire une carte du "tissu" de villes tunisiennes**, par exemple en reliant les villes de plus de 10 000 hab. qui sont distantes de moins de 50 km. Où sont les plus fortes continuités de densités urbaines ? les réseaux potentiels de moindre densité ? les zones où la présence des villes est plus rare ?
+
+*Pour aller plus loin, vous pouvez sélectionner plusieurs seuils de distance en fonction de la taille des villes (par exemple 100 km pour les villes de plus de 100 000 habitants), et/ou en choisissant plusieurs dates, en sélectionnant les villes de plusieurs pays voisins à partir de la base Africapolis...*
+:::
+
+::: {.callout-caution collapse="true"}
+## Un peu d'aide ?
+
+**- Comment sélectionner les villes distantes de moins de 50 km ?**<br>
+Vous pouvez vous aider de la syntaxe *df2 <- df[df$variable <50,]*
+
+**- Comment dessiner les liens entre villes à partir de cette sélection ?**<br>
+La fonction correspondante dans **`mapsf`** est **`get_link_layer`**.<br>
+Ses arguments reposent sur la sélection de deux fichiers : celui des points, celui de la table des liens, les identifiants des deux fichiers devant être identiques (par exemple ici les noms des villes) : *liens <- mf_get_links(x = ..., df = ...)*<br>
+On peut ensuite construire une carte thématique à partir de ces liens : *mf_map(x = liens, ...)*<br>
+Voir l'[explication plus détaillée sur le site du package](https://riatelab.github.io/mapsf/articles/mapsf.html#links-map){target="_blank"}
+
+:::
+
+::: {.callout-note collapse="true"}
+## Une solution possible...
+
+Sélection des couples de villes distantes de moins de 50 km (2015)
+```{r}
+dist50vil <- distvil[distvil$disteucl<50,]
+```
+
+Sélection des couples de grandes villes distantes de moins de 100 km (2015)
+```{r}
+# Jointure pour récupérer les populations des villes
+distvil <- merge(x = distvil,y =st_drop_geometry(vil[,c("Nom","Pop2015")]), 
+           by.x= "j", by.y= "Nom")
+names(distvil)[15] <- "Pop2015j"
+
+distvil <- merge(x = distvil,y =st_drop_geometry(vil[,c("Nom","Pop2015")]), 
+           by.x= "i", by.y= "Nom")
+names(distvil)[16] <- "Pop2015i"
+
+# Sélection des couples de villes de plus de 100 000 habitants...
+distvil100k <- distvil[distvil$Pop2015i>100000 & distvil$Pop2015j>100000,]
+# ... et distantes de moins de 100 km
+dist100vil100k <- distvil100k[distvil100k$disteucl<100,]
+```
+
+
+**Carte de liens entre les villes distantes de moins de 50 km ou entre les grandes villes distantes de moins de 100 km**
+
+Sélection des identifiants pour le fichier des villes
+```{r}
+# Il faut que les identifiants des villes dans le fichier des points soient les mêmes que les identifiants du fichier des liens (les noms des villes) : on ne conserve dans le fichier des villes que la variable "Nom"
+vil <- vil[,c("Nom","Pop2015")]
+```
+
+Création du graphe des liens entre toutes les villes proches (<50km) et entre grandes villes proches (<100 km)
+```{r}
+liens50 <- mf_get_links(x = vil, df = dist50vil)
+liens100 <- mf_get_links(x = vil, df = dist100vil100k)
+```
+
+Carte
+```{r}
+mf_map(reg, col="bisque", border="white", lwd=0.5)
+mf_map(x=vil, pch = 20, cex = 0.8, col = "violet", add=TRUE)
+
+mf_map(x = liens100,
+       var = "disteucl",
+       leg_pos = "topright",
+       leg_title = "Moins de 100 km entre les villes de plus de 100 000 hab.", 
+       col = "purple4", lwd = 2,add=TRUE)
+mf_map(x = liens50,
+       var = "disteucl",
+       leg_pos = "topright",
+       leg_title = "Moins de 50 km entre villes",
+       col = "purple1", lwd = 1,add=TRUE)
+
+# Affichage de qqs noms de villes
+mf_label( x = vil[vil$Pop2015>100000,],
+          var = "Nom", 
+  col = "black",
+  cex = 0.6,
+  font = 1,
+  r = 0.1,
+  halo = TRUE,
+  overlap = FALSE,
+  lines = FALSE
+)
+
+mf_title("Villes distantes de moins de 50 km et de moins de 100 km, 2015", cex = 0.8)
+mf_scale(pos = "bottomright", lwd = 2, cex = 0.6, scale_units = "km")
+mf_credits("Sources : Africapolis 2020, INS & Syfacte/RIATE")
+```
+
+:::
+
+<br><br>
+\
+\
+\
+
+# **2. Des distances à l'accessibilité**
+
+L’accessibilité mesure le degré de facilité avec lequel un lieu, un équipement, une ressource, peuvent être atteints à partir d’un ou de plusieurs autres lieux, en utilisant tout ou partie des moyens de transport existants ([Chapelon, 2004](https://hypergeo.eu/accessibilite/){target="_blank"}). L’accessibilité spatiale s’appuie sur la prise en compte d’une **distance entre des populations et des ressources**, entendues comme des équipements ou des activités qui répondent aux besoins d’une société ou d’un groupe social (écoles, commerces, lieux d’emploi, lieux de soin…).
+
+::: {layout="[50,50]"}
+::: {first-column}
+
+L’accessibilité **se différencie de l’accès** qui concerne le déplacement réellement effectué pour utiliser cette ressource. C’est donc une notion théorique, potentielle, au sens où elle n’est pas liée à une mobilité réalisée. Le **passage de l’accessibilité à l’accès effectif** dépend en partie de la **proximité aux ressources** et des conditions de déplacement, mais aussi d’**autres composantes non spatiales**. Ces dernières peuvent être liées à la perception de l’effort à fournir, au manque d’information sur l’existence de ces ressources, aux horaires d’ouverture (commodités) ainsi qu’à la composante financière de l’accès (coût du service ou bien coût du déplacement).
+
+Il existe de nombreuses mesures possible de l'accessibilité spatiale. Dans cette partie, vous allez voir **comment construire plusieurs indicateurs à partir d'une matrice de distances**, en vous appuyant sur l'accessibilité des populations (totales) des délégations aux villes universitaires.
+
+:::
+::: {second-column}
+![](img/AccessDef.png){width="50%"}
+:::
+:::
+
+::: callout-note
+De nombreux éléments du code qui suit s'inspirent directement d'un [programme construit par R. Ysebaert](https://chir-access-methodo-rysebaert-4660a5a1ab53740375460e277db75966f.gitpages.huma-num.fr/#in%C3%A9galit%C3%A9s-sociales-et-territoriales){target="_blank"}, dans le cadre d'un projet de recherche sur l'accessibilité aux soins de chirurgie en France mené avec S. Baudet-Michel et B. Conti.
+:::
+
+
+## Décrire l'accessibilité locale : une première approche élémentaire à partir d'un site unique et d'un seuil de distance
+
+Dans l'exemple qui suit, vous allez d'abord voir comment créer et représenter la zone accessible autour d'une site unique :
+
+- Carte des distances/temps de trajet autour d'un site (isochrones)
+- Combien d'habitants à moins de telle distance/tel temps de trajet de ce site ?
+
+Ici on s'appuiera sur l'ensemble des habitants des secteurs (2004), faute d'avoir une information plus précise sur le nombre de jeunes.
+
+
+**Exemple : quels sont les territoires à moins d'1h par la route de l'Université de Sousse ?**
+
+Construction de l'**isochrone autour de l'Université de Sousse**\
+à l'aide de la fonction **`osrmIsochrone`** du package **`osrm`**
+```{r}
+# Sélection de l'université de Sousse
+UnivSousse <- univ[univ$Nom=="Sousse",]
+# Transformation en WGS84 (pour pouvoir ensuite afficher l'isochrone avec le package Leaflet)
+UnivSousseWGS84 <- st_transform(UnivSousse,4326) %>% select(Nom,geom)
+
+# Construction de l'isochrone
+isosousse <- osrmIsochrone(
+  UnivSousseWGS84,
+  breaks = seq(0,60,60),
+  res = 30,
+  osrm.server = getOption("osrm.server"),
+  osrm.profile = getOption("osrm.profile")
+)
+
+# pour récupérer la géométrie de l'isochrone si la connexion au réseau et à OSRM pose problème
+# st_read("data/SPA2/isosousse.gpkg")
+```
+
+Afficher l'isochrone avec le fond leaflet
+```{r}
+leaflet(UnivSousseWGS84) %>% addTiles() %>% addPolygons(data = isosousse, fillColor = "orange", fillOpacity = 0.3, stroke = FALSE) %>% addCircleMarkers()
+```
+
+**Combien d'habitants ont accès à l'Université de Sousse en moins d'1h ?**
+
+Sélectionner les secteurs qui se trouvent à moins d'1h de l'Université
+```{r}
+isosousse3035 <- st_transform(isosousse,crs=3035)
+secteurs <- st_transform(secteurs,crs=3035)
+secteursIn <- st_intersection(x = secteurs, y = isosousse3035)
+```
+
+```{r}
+secteursInpop <- secteursIn %>% group_by() %>% summarize(Poptot04 = sum(Population_Tot))
+secteursInpop$Poptot04
+```
+
+
+
+## Quelle est la distance à l'université la plus proche ?
+
+On cherche à sélectionner pour chaque délégation la distance à l'université la plus proche, depuis chaque centroïde de délégation. Cette mesure repose sur l'hypothèse selon laquelle on se rend en priorité à l'université la plus proche.
+
+Etapes suivies :
+
+- Création d'une **matrice de distances** entre les 264 délégations (origine = centroïdes des dél.) et les 10 universités (source : OSM)
+- **Sélection** pour chaque délégation de la **distance minimale** à une université
+
+**Création d'une matrice des distances (routières) entre les délégations et les universités**
+
+On extrait d'abord les centroïdes des délégations
+```{r}
+del_ctr <- st_centroid(del)
+```
+
+Puis on construit la matrice des distances routières entre les délégations (origines *ori=deleg*) et les universités (destinations *dest=univ*)
+```{r}
+# Calcul de temps de trajets avec OSRM
+deltime <- osrmTable(src = del_ctr, dst = univ, measure = "duration")
+# Extraire les temps de trajet
+deltime <- data.frame(deltime$durations)
+# Renommer les identifiants des lignes et des colonnes
+colnames(deltime) <- as.character(univ$Nom)
+row.names(deltime) <- as.character(del_ctr$del_code)
+
+# pour récupérer la matrice deltime si la connexion au réseau et à OSRM pose problème
+# readRDS(file = "data/SPA2/deltime.rds")
+```
+
+**Carte des temps de trajet vers l'université la plus proche**
+
+::: {layout="[50,50]"}
+::: {first-column}
+Récupération pour chaque délégation des temps de trajets les plus courts (distance minimale) ...
+```{r}
+# Extraire les temps de parcours minimaux
+time <- apply(deltime, 1, min) 
+# Transformation de la matrice en format dataframe
+time <- data.frame(time)
+time$del_code <- rownames(time)
+# Jointure avec le fichier des délégations
+del2 <- merge(del, time, by = "del_code", all.x = TRUE)
+
+```
+:::
+
+::: {second-column}
+
+![](img/TpsUnivpp.png)
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Code pour la création de la carte
+```{r,fig.width=5, fig.height=5, eval=FALSE}
+library(mapsf)
+mf_init(del)
+mf_map(del, col = "lightgrey", 
+       border = NA,
+       add = TRUE)
+mf_map(del2, 
+       type = "choro",
+       var = "time",
+       breaks = c(0,15,30,60,120,240,360),
+       pal = "Purples",
+       border = "white", 
+      leg_title = "Minutes en voiture",
+       add = TRUE)
+mf_map(univ, pch = 21, col = NA, bg = "red",add=TRUE)
+# mf_label(univ,"Nom",col = "black",cex = 0.7,font = 1,r = 0.1,halo = TRUE,overlap = FALSE,lines = FALSE)
+mf_scale(size = 10)
+mf_title("Temps de trajet vers l'Université la plus proche")
+mf_credits("Source : © OpenStreetMap 2024, INS")
+```
+:::
+
+Pour récupérer directement le fichier **del2** en cas de problème de connexion avec OSRM...
+```{r}
+#del2 <- st_read("data/SPA/SPA2/del2.gpkg")
+```
+
+
+## Résumer l'accessibilité générale des délégations et des populations aux universités 
+
+### Indicateurs d'accessibilité moyenne, médiane, maximale
+
+**Quelle est la distance minimale moyenne ? médiane ? maximale ? des délégations à l'univ la plus proche**
+```{r}
+summary(del2$time)
+```
+
+::: {.callout-note collapse="true"}
+## Que vous apprend le résumé de la distribution statistique des temps de parcours ?
+   
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+   2.40   23.80   55.40   63.39   88.72  342.00 
+   
+En moyenne, une délégation est distante d'un peu plus d'une heure (63 min) de l'université la plus proche. 
+Les trois quarts des délégations se trouvent entre 24 min et 1h30 de l'université la plus proche.
+La délégation la plus éloignée (distance maximale) se trouve à près de 6 heures de route de l'université la plus proche.
+:::
+
+**Distance moyenne pondérée**
+
+Certaines délégations très éloignées de l'université la plus proche pèsent fortement dans le calcul de la distance moyenne alors qu'elles comptent peu d'habitants. Pour tenir compte de ces inégalités de populations dans le calcul de la distance moyenne, on peut calculer une distance moyenne pondérée. Cette dernière estime la **distance moyenne des populations à l'université la plus proche** (et non la distance moyenne **des délégations** à l'université). 
+
+![](img/DistPond.png){width=“20%”}
+
+Comme l'illustre la figure ci-dessus, calculer une distance moyenne pondérée revient à multiplier chaque distance par la population de la délégation d'origine et à diviser la somme de ces distances pondérées par la population totale des délégations tunisiennes.
+
+```{r}
+# On multiplie chaque valeur de distance par la population de la délégation d'origine
+del2$timepond <- del2$time * del2$popto_2014
+# On divise la somme des distances pondérées par la population totale des délégations
+dist_moypond <- round(sum(del2$timepond)/ sum(del2$popto_2014),1)
+```
+
+\
+\
+*-> Alors, en moyenne, quel est le temps de trajet vers l'université la plus proche pour les habitants des délégations ?*
+
+
+
+**Création d'un tableau qui résume ces résultats**
+```{r}
+# Resultats à mettre dans un tableau de données
+# On crée un nouveau tableau de données (de type 'data frame') nommé "resume_dist" qui aura 8 colonnes et 2 lignes
+resume_dist <- data.frame(matrix(ncol = 4, nrow = 1))
+colnames(resume_dist) <- c("Variable", "Moyenne", "Moyenne pondérée", "Maximum")
+resume_dist[1,1] <- "Dist_univ_pp (min)"
+resume_dist[1,2] <- mean(del2$time)
+resume_dist[1,3] <- dist_moypond
+resume_dist[1,4] <- max(del2$time)
+
+# Mise en forme soignée à l'aide du package 'kable'
+kable(resume_dist, align = "c", escape = F, digits = 0) %>%
+    kable_paper(full_width = F) %>%
+    column_spec(1, bold = TRUE)
+```
+
+
+
+## Courbe d'accessibilité générale des populations aux universités
+
+La fonction *freqCum* créée par Ronan Ysebaert produit un graphique qui représente le pourcentage cumulé de la population en fonction d’une distance (en minutes) à l’équipement le plus proche. Elle prend en entrée plusieurs arguments détaillés ci-dessous :
+
+::: {.callout-note collapse="true"}
+## Création de la fonction freqCum
+```{r}
+
+# Arguments de la fonction freqCum :
+# x : un data frame qui comprend au minimum une variable exprimant la distance et une variable décrivant une population.<br>
+# dist : label de la variable de distance utilisée, comprise dans x.<br>
+# pop : label(s) des variables de population utilisées dans l’analyse, comprise(s) dans x.<br>
+# label.x : afficher un point (x,y) sur la courbe et son label en fonction d’une ou plusieurs valeurs de x (distance-temps).<br>
+# label.y : afficher un point (y,x) sur la courbe et son label en fonction d’une ou plusieurs valeurs de y (population).<br>
+# xlab: Label de l’axe des abscisses (temps routier).<br>
+# xlim : Emprise du graphique sur l’axe des abscisses (défaut : c(0, 100)).<br>
+# ylim : Emprise du graphique sur l’axe des ordonnées (défaut : c(0, 100)).<br>
+# lwd : Épaisseur de la ligne (défaut : 0.5).<br>
+# lty : Type de ligne (défaut : 1, ligne continue)<br>
+# add : Si TRUE, rajouter sur un graphique pré-existant l’affichage de fréquences cumulées (défaut = FALSE).
+
+freqCum <- function(x, dist, pop, cols, label.x = NULL, label.y = NULL, xlab, xlim = c(0, 300), ylim = c(0, 100), lwd = 0.5, lty = 1, add = FALSE) {
+
+# Sélectionner les valeurs (toutes les lignes + les colonnes dist et pop)
+df <- x[, c(dist, pop)]
+
+# Créer des intervalles de temps (minute par minute)
+brks <- seq(0, max(df[, dist], na.rm = TRUE), by = 0.1)
+df$dist <- findInterval(df[, dist], vec = brks)
+df$dist <- brks[df$dist + 1]
+
+# Supprimer valeurs manquantes
+df <- df[!is.na(df$dist), ]
+
+# Graphique vide
+par(mar = c(4, 4, 1, 1), xaxs = "i", yaxs = "i")
+
+if (add != TRUE) {
+        plot(1, type = "n", xlab = xlab, ylab = "Effectif cumulé (% population)",
+            xlim = xlim, ylim = ylim)
+        abline(h = seq(0, 300, 10), col = "#00000060", lwd = 0.2, lty = 3)
+        abline(v = seq(0, 300, 10), col = "#00000060", lwd = 0.2, lty = 3)
+    }
+
+    for (i in 1:length(pop)) {
+
+# Agréger les données de pop par pas de temps(les individus du tableau
+# deviennent ces intervalles de temps)
+        t <- aggregate(df[, pop[i]], by = list(df$dist), sum)
+
+# Création d'une nouvelle variable de fréquence cumulée (d'abord freq
+# en effectifs puis cumul en pourcentages) en utilisant la fonction cumsum (base)
+        t$freq <- cumsum(t$x)
+        t$cumul <- t$freq/t[nrow(t), 3] * 100
+        lines(t$Group.1, t$cumul, col = cols[i], lwd = lwd, lty = lty)
+
+        if (length(label.x > 0)) {
+            for (j in 1:length(label.x)) {
+                xy <- t[which.min(abs(label.x[j] - t$Group.1)), ]
+                points(y = xy[, "cumul"], x = xy[, "Group.1"], pch = 21, cex = 1.5,
+                  bg = cols[i])
+                text(y = xy[, "cumul"], x = xy[, "Group.1"], pos = 2, cex = 0.6,
+                  label = paste(round(xy[, "Group.1"], 0), round(xy[, "cumul"], 1),
+                    sep = ", "))
+            }
+        }
+
+        if (length(label.y > 0)) {
+            for (j in 1:length(label.y)) {
+                xy <- t[which.min(abs(label.y[j] - t$cumul)), ]
+                points(y = label.y[j], x = xy[, "Group.1"], pch = 21, cex = 1.5,
+                  bg = cols[i])
+                text(y = label.y[j], x = xy[, "Group.1"], pos = 2, cex = 0.6, label = paste(label.y[j],
+                  round(xy[, "Group.1"], 1), sep = ", "))
+            }
+        }
+    }
+}
+```
+:::
+
+### Courbe d'accessibilité générale des populations à l'université la plus proche 
+```{r}
+
+df <- del2
+df <- st_drop_geometry(df)
+
+# Graphique des distances aux universités, situation initiale
+freqCum(x = df, dist = "time", pop = "popto_2014", cols = "blue",
+    xlab = "Temps routier (minutes) à l'université la plus proche",
+    xlim = c(0, 300), lwd = 2)
+
+```
+
+::: {.callout-note collapse="true"}
+## Pour récupérer le tableau des populations cumulées en fonction de la distance
+```{r,eval=FALSE}
+
+df2 <- deltime
+
+# Création d'une nouvelle colonne dist qui identifie la distance à l'Université la plus proche
+df2$dist <- apply(df2, 1, min)
+df2$del_code <- rownames(df2)
+# Récupération des populations de chaque délégation
+df2 <- merge(df2,del,by.x="del_code",by.y="del_code",all.x=TRUE)
+# Sélection de 3 colonnes : le code, la distance minimale, la population
+df2 <- df2[,c("del_code","dist","popto_2014")]
+colnames(df2) <- c("del_code","dist","pop")
+
+# Créer des intervalles de temps (minute par minute)
+brks <- seq(0, max(df2[,"dist"]), by = 1)
+df2$dist <- findInterval(df2[,"dist"], vec = brks)
+
+# Supprimer valeurs manquantes
+df2 <- df2[!is.na(df2$dist), ]
+
+# Agréger les données de pop par pas de temps(les individus du tableau
+# deviennent ces intervalles de temps)
+tab <- aggregate(df2[,"pop"], by = list(df2$dist), sum)
+colnames(tab)<-c("dist","pop")
+
+# Création d'une nouvelle variable de fréquence cumulée (d'abord freq
+# en effectifs puis cumul en pourcentages) en utilisant la fonction cumsum (base)
+tab$freq <- cumsum(tab$pop)
+tab$cumul <- round(tab$freq/tab[nrow(tab), 3] * 100,1)
+```
+:::
+
+
+
+# A vous de jouer ! Comparez deux scénarios pour l'implantation d'une nouvelle université
+
+Dans cet exercice, on vous propose de comparer les effets de deux scenarios d'implantation d'une nouvelle université, à Kasserine ou à Ben Guerdane, sur l'accessibilité générale des populations des délégations aux universités.\
+
+Quelle est l'implantation qui semble a priori la plus favorable ? d'après quels critères ?
+
+**Une démarche possible ?** :
+
+(1) Créer un **nouveau fichier des universités** à partir d'**univ** : soit un fichier **univ_K** où vous **ajouterez une ligne** correspondant à la future université de Kasserine <span style="color:blue;">(X=4213807,Y=1347151)</span>, soit un fichier **univ_BG**, démarche identique pour Ben Guerdane <span style="color:blue;">(X=4434851,Y=1124165)</span>\
+
+(2) Construire une **nouvelle matrice des distances routières des 264 délégations aux 11 universités** (avec soit Kasserine, soit Ben Guerdane en plus)\
+
+(3) Extraire la **nouvelle valeur de la distance à l'université la plus proche**\
+
+(4) Calculer les **indicateurs d'accessibilité générale** (moyenne simple et pondérée, médiane, maximum) et superposer à la courbe d'accessibilité générale vers les 10 universités une **deuxième courbe qui prendra en compte la nouvelle implantation universitaire**\
+
+
+::: {.callout-caution collapse="true"}
+## Un peu d'aide pour l'étape (1) ?
+
+Création en 4 étapes : 
+1) on stocke le nom, les coordonnées en X et les coordonnées en Y de la nouvelle université dans un fichier df à l'aide de la fonction **nom_nouveau_fichier <- data.frame(var1=" ", var2=" ", var3=" ")**
+2) on retire les géométries au fichier univ (transformation format sf > df) à l'aide de la fonction **nom_nouveau_fichier <- st_set_geometry(nomfichiersf,NULL)**
+3) on ajoute à **univ** une ligne correspondant aux coordonnées ponctuelles de la nouvelle univ. à l'aide de la fonction **nom_fichier <- rbind(sf1,sf2)**
+4) on crée un nouveau fichier de géométries à partir des coordonnées ponctuelles de ces 11 universités, à l'aide de la fonction **nom_fichier <- st_as_sf(fichierdf,coords = c("X","Y"),crs=st_crs(...))**
+::: 
+
+::: {.callout-caution collapse="true"}
+## Un peu d'aide pour l'étape (4) ?
+
+Pour superposer à la 1ère courbe d'accessibilité générale (avec 10 universités) une deuxième courbe qui prendra en compte la 11ème université, on peut :
+
+- joindre au tableau des délégations **une nouvelle colonne du temps d'accès à l'université la plus proche** pour pouvoir comparer un des deux scenarios A ou B à la situation actuelle 
+
+- sur le graphique de l'accessibilité générale, ajouter une 2e courbe à l'aide de la fonction freqCum, avec comme dernier argument *add=TRUE* pour superposer les 2 courbes (situation actuelle, scenario A ou B)
+*freqCum(x = df, dist = "...", pop = "popto_2014", cols = "red", lwd = 2, add = TRUE)*
+:::
+
+::: {.callout-note collapse="true"}
+## Une solution possible...
+
+**Création de 2 nouveaux fichiers **`sf`** des universités**
+
+On crée univ_K où on ajoute la localisation de Kasserine 
+```{r}
+# on récupère les coordonnées de Kasserine et on les stocke dans un fichier df
+Kasserine <- data.frame(Nom="Kasserine",X=4213807,Y=1347151)
+# on retire les géométries au fichier univ (transformation format sf > df)
+univ_K <- st_set_geometry(univ,NULL)
+# on ajoute une ligne correspondant aux coordonnées ponctuelles de Kasserine 
+univ_K <- rbind(univ_K,Kasserine)
+# on crée un nouveau fichier de géométries à partir des coordonnées ponctuelles de ces 11 universités
+univ_K <- st_as_sf(univ_K,coords = c("X","Y"),crs=st_crs(3035))
+```
+
+Puis on crée univ_BG où on ajoute la localisation de Ben Guerdane 
+```{r}
+BenGuerdane <- data.frame(Nom="Ben Guerdane",X=4434851,Y=1124165)
+univ_BG <- st_set_geometry(univ,NULL)
+univ_BG <- rbind(univ_BG,BenGuerdane)
+univ_BG <- st_as_sf(univ_BG,coords = c("X","Y"),crs=st_crs(3035))
+```
+
+
+### Matrice des distances (routières) entre les délégations et les univ_K + univ_BG
+
+**Construction de la matrice des distances routières entre ori=deleg et dest=univ_K**
+```{r}
+# Calcul de temps de trajets avec OSRM
+dfK <- osrmTable(src = del_ctr, dst = univ_K, measure = "duration")
+# Extraire les temps de trajet
+dfK <- data.frame(dfK$durations)
+# Renommer les identifiants des lignes et des colonnes
+colnames(dfK) <- as.character(univ_K$Nom)
+row.names(dfK) <- as.character(del_ctr$del_code)
+head(dfK)
+```
+
+**Construction de la matrice des distances routières entre ori=deleg et dest=univ_BG**
+```{r}
+# Calcul de temps de trajets avec OSRM
+dfBG <- osrmTable(src = del_ctr, dst = univ_BG, measure = "duration")
+# Extraire les temps de trajet
+dfBG <- data.frame(dfBG$durations)
+# Renommer les identifiants des lignes et des colonnes
+colnames(dfBG) <- as.character(univ_BG$Nom)
+row.names(dfBG) <- as.character(del_ctr$del_code)
+head(dfBG)
+```
+
+
+### Récupérer pour chaque délégation la distance à l'université la plus proche et la cartographier
+
+**Extraire les temps de parcours minimaux**
+```{r}
+# Avec Kasserine (scenario A)
+timeK <- apply(dfK, 1, min) 
+timeK <- data.frame(timeK)
+timeK$del_code <- rownames(timeK) 
+
+# Avec Ben Guerdane (scenario B)
+timeBG <- apply(dfBG, 1, min) 
+timeBG <- data.frame(timeBG)
+timeBG$del_code <- rownames(timeBG) 
+```
+
+
+**Ajout dans le fichier des délégations des temps de parcours avec le scenario A (Kasserine) et le scenario B (Ben Guerdane)**
+```{r}
+del2_K <- merge(del2, timeK, by = "del_code", all.x = TRUE)
+del2_K_BG <- merge(del2_K, timeBG, by = "del_code", all.x = TRUE)
+del3 <- del2_K_BG
+```
+
+**Cartes scenario A et scenario B**
+```{r}
+# Mise en page (1 lignes, 2 colonnes)
+
+par(mfrow = c(1, 2))
+
+mf_init(del)
+mf_map(del3, col = "lightgrey",border = NA,add = TRUE)
+mf_map(del3,type = "choro",var = "timeK",breaks = c(0,15,30,60,120,240,360),pal = "Purples",border = "white", leg_title = "Minutes en voiture", add = TRUE)
+mf_map(del, col = NA, border = "black",add = TRUE)
+mf_map(univ_K, pch = 21, col = NA, bg = "red", add = TRUE)
+mf_scale(size = 10)
+mf_title("Temps de trajet vers l'Université la plus proche (avec Kasserine)", cex=0.8)
+mf_credits(paste0("Source : © OpenStreetMap et © Wikipedia 2024"))
+
+mf_init(del)
+mf_map(del3, col = "lightgrey",border = NA,add = TRUE)
+mf_map(del3,type = "choro",var = "timeBG",breaks = c(0,15,30,60,120,240,360),pal = "Purples",border = "white", leg_title = "Minutes en voiture", add = TRUE)
+mf_map(del, col = NA, border = "black",add = TRUE)
+mf_map(univ_BG, pch = 21, col = NA, bg = "red", add = TRUE)
+mf_scale(size = 10)
+mf_title("Temps de trajet vers l'Université la plus proche (avec Ben Guerdane)", cex=0.8)
+mf_credits(paste0("Source : © OpenStreetMap et © Wikipedia 2024"))
+```
+
+### Statistiques élémentaires sur la distance minimale à l'université la plus proche
+
+Quelle est la distance moyenne ? moyenne pondérée ? maximale ? des délégations à l'univ la plus proche ?
+
+Tableau qui résume ces résultats : situation initiale (0), scenario A (avec Kasserine), scenario B (avec Ben Guerdane)
+```{r}
+del3 <- na.omit(del3)
+
+resume_dist <- data.frame(matrix(ncol = 4, nrow = 3))
+colnames(resume_dist) <- c("Distance_univ_pp (min)", "Moyenne", "Moyenne pondérée", "Maximum")
+
+resume_dist[1,1] <- "Situation 0"
+resume_dist[1,2] <- mean(del3$time)
+resume_dist[1,3] <- sum(del3$time*del3$popto_2014)/ sum(del3$popto_2014)
+resume_dist[1,4] <- max(del3$time)
+
+resume_dist[2,1] <- "Scenario A"
+resume_dist[2,2] <- mean(del3$timeK)
+resume_dist[2,3] <- sum(del3$timeK * del3$popto_2014)/ sum(del3$popto_2014)
+resume_dist[2,4] <- max(del3$timeK)
+
+resume_dist[3,1] <- "Scenario B"
+resume_dist[3,2] <- mean(del3$timeBG)
+resume_dist[3,3] <- sum(del3$timeBG * del3$popto_2014)/ sum(del3$popto_2014)
+resume_dist[3,4] <- max(del3$timeBG)
+
+# Mise en forme soignée à l'aide du package 'kable'
+library(kableExtra)
+kable(resume_dist, align = "c", escape = F, digits = 0) %>%
+    kable_paper(full_width = F) %>%
+    column_spec(1, bold = TRUE)
+```
+
+### Courbe d'accessibilité générale des populations à l'université la plus proche 
+```{r}
+# On crée un nouveau tableau df à partir du fichier deltime, dont on a retiré
+# les géométries
+df <- st_set_geometry(del3, NULL)
+
+# Graphique distances aux universités, situation initiale
+freqCum(x = df, dist = "time", pop = "popto_2014", cols = "blue",
+    xlab = "Temps routier (minutes) à l'université la plus proche",
+    xlim = c(0, 300), lwd = 2)
+
+# Graphique distances aux universités, scenario A (avec Kasserine)
+freqCum(x = df, dist = "timeK", pop = "popto_2014", cols = "red",
+    lwd = 2, add = TRUE)
+
+# Graphique distances aux universités, scenario B (avec Ben Guerdane)
+freqCum(x = df, dist = "timeBG", pop = "popto_2014", cols = "green",
+    lwd = 2, add = TRUE)
+
+# Ajout d'une légende au graphique
+legend("bottomright", legend = c("Situation initiale (10 universités)", "Scenario A (avec Kasserine)","Scenario B (avec Ben Guerdane)"),
+    col = c("blue", "red","green"), cex = 0.8, inset = c(0, 0), border = NA, bty = "n", lwd = 2)
+
+```
+
+::: 
+
+
+
+------------------------------------------------------------------------
+
+::: {.callout-note title="A propos de ce document"}
+Ce support a été créé pour la semaine de formation franco-tunisienne
+**GEO UNIV'R Tunisie 2024 - "Enseigner la statistique, la cartographie
+et l'analyse spatiale avec R** qui se tient à Sousse en mai 2024.
+:::
+
+#### Références {.unnumbered}
+
+Chapelon L., 2014, "Accessibilité", [Hypergeo, encyclopédie en ligne](https://hypergeo.eu/accessibilite/){target="_blank"}
+
+Pumain D., Saint-Julien T., 2010, *Analyse spatiale : les localisations*, Paris : Cursus Armand Colin, p.31.
+
+::: {#refs}
+:::
+
+------------------------------------------------------------------------
+
+```{r sessionInfo}
+sessionInfo()
+```
+
+
+
+

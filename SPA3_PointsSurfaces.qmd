@@ -1,0 +1,1165 @@
+---
+title: "[SPA3] Des points aux surfaces"
+subtitle: "GEO UNIV'R Tunisie 2024"
+date: "05/15/2024"
+author: "Marianne Guérois, Malika Madelin"
+format:
+  html:
+    embed-resources: true
+    theme: yeti
+    smooth-scroll: true
+    fontsize: 0.9em
+    toc: true
+    toc-depth: 2
+    toc-title: "."
+    bibliography: [bib.bib]
+    css: custom.css
+    crossrefs-hover: false
+execute:
+  warning: false
+  message: false 
+  cache: false   
+knitr:
+  opts_chunk:
+    out.width: "100%"
+editor_options: 
+  chunk_output_type: console
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+![](img/Img_PtsSurf.png)
+
+# Objectifs et mise en place du module
+
+Il est très courant (et de plus en plus) d'avoir des données géographiques ponctuelles, du fait des méthodes de collecte et d'échantillonnage, de la localisation de nos activités et des appareils de mesures (GPS, capteurs IoT, ...). La cartographie des points s'avère parfois illisible (quand trop de points), voire limitée pour dégager la distribution du phénomène étudié.         
+Passer des **points** répartis dans l'espace à des **surfaces**, c'est-à-dire « **spatialiser** » , permet de rendre plus attractive la carte produite, de mieux appréhender la répartition spatiale et aussi d'estimer des valeurs là où il n'y a pas eu de mesures. De nombreuses méthodes, de la « simple » agrégation spatiale au krigeage, existent et dépendent notamment de la nature des données. 
+
+Les **objectifs** de ce module sont (1) de distinguer les **types / familles de méthodes** selon les données, (2) d'aborder les principales et **comment les faire sous `R`** et (3) de discuter des **avantages/limites**. 
+Après la présentation des **agrégations spatiales** (les méthodes les plus élémentaires), nous aborderons les méthodes de **lissages** selon la nature du phénomène, discrète / continue (cf. Encadré).
+
+
+
+::: {.callout-note collapse="true"}
+## Phénomène discret *vs.* phénomène continu
+
+« Un phénomène est dit **continu** dans l’espace s’il est défini en tout point de l’espace géographique et que ses propriétés varient localement de manière graduelle et structurée. » (@caloz_collet2011). Pour autant, il ne peut être mesuré en tout point de l’espace, l'espace est alors discrétisé soit en maille régulière (ex des pixels d'un modèle numérique de terrain, cf. MAR2), soit par des points d'échantillonnage (ex de la température mesurée par des stations météorologiques, de niveaux de piézomètres, etc.). À l'inverse, un phénomène discret est identifiable comme un objet occupant une surface donnée sur le territoire (ex d'un équipement, d'un gouvernorat, etc.), même s'il peut être décrit ensuite par un point. 
+
+:::
+
+### Pré-requis méthodologiques
+
+- Sur l'information géographique : connaître la différence raster/vecteur et la définition des coordonnées spatiales d'objets géographiques
+- En statistiques : savoir résumer une distribution statistique univariée, connaître la corrélation et la régression
+
+
+### Packages utilisés
+
+- [**`sf`**](https://cran.r-project.org/web/packages/sf/index.html){target="_blank"} (et aussi [**`sp`**](https://cran.r-project.org/web/packages/sp/index.html){target="_blank"}) : importer, manipuler et exporter des données géographiques vectorielles.[vu LUN1, MAR1...]{style="color:#5396B0;"}. `sf` est plus récent et maintenant plus utilisé que `sp`, mais il reste quelques packages qui utilisent encore `sp`  ;
+- [**`mapsf`**](https://cran.r-project.org/web/packages/mapsf/index.html){target="_blank"} : pour la cartographie thématique [vu MAR2...]{style="color:#5396B0;"} ;
+- [**`terra`**](https://cran.r-project.org/web/packages/terra/index.html){target="_blank"} : pour une partie des méthodes d'interpolation des données, dans le monde *raster* [vu MAR2 pour les rasters]{style="color:#5396B0;"} ;
+- [**`gstat`**](https://cran.r-project.org/web/packages/gstat/index.html){target="_blank"} : pour les méthodes géostatistiques d'interpolation des données ;
+- [**`automap`**](https://cran.r-project.org/web/packages/automap/index.html){target="_blank"} : pour l'automatisation de la méthode d'interpolation des données « krigeage » .
+- [**`spatstat`**](https://cran.r-project.org/web/packages/spatstat/index.html){target="_blank"} (et aussi `cartography`) : qui, au-delà de l'analyse des semis de points, permet aussi d'explorer les lissages de phénomènes discrets.
+
+
+Installation (si le package n'est pas déjà installé sur votre machine)
+```{r, cache = T, message=F}
+# liste des packages nécessaires
+liste_packages <- c("sf", "sp", "mapsf", "terra", "gstat", "automap","spatstat","cartography")
+# liste des éventuels packages à installer (= ceux qui ne sont pas déjà installés)
+new_packages <- liste_packages[!(liste_packages %in% installed.packages()[,"Package"])]
+# s'il y en a, installation 
+if(length(new_packages)) install.packages(new_packages)
+```
+
+Chargement des packages
+```{r, cache = T, message=F}
+library(sf)
+library(sp)
+library(mapsf)
+library(terra)
+library(gstat)
+library(automap)
+library(spatstat)
+library(cartography)
+```
+
+<br>
+
+### Importation des bases de données
+
+
+**Fond de carte des délégations, gouvernorats et régions (source: INS & Syfacte/RIATE)**   
+Déjà vu dans de [nombreux modules]{style="color:#5396B0;"}.
+```{r}
+reg <- st_read("data/SPA/tun_admin.gpkg", layer = "region", quiet = TRUE)
+```
+
+
+**Données Tirs au but**  
+Les données *Tirs au but* regroupent les localisations des tirs ayant eu lieu lors des matchs des 5 plus grandes ligues européennes de football (Angleterre, Espagne, Allemagne, Italie, France). Le fichier initial, disponible [ici](https://github.com/hadjdeh/football-data-analysis/tree/main/Shots_and_goals_map){target="_blank"}. Chaque tir est aussi décrit par de multiples variables (en tout, le fichier comprend 265 colonnes), sur le type de tir, but ou pas, sur le joueur, l'heure, l'action d'avant, etc.). Le fichier décrit la saison 2023-24 (plus précisément du 11/8/23 au 17/3/24). Pour les *aficionados*, vous trouverez au-delà des données, des ressources, des idées de traitement, etc. sur ce compte de Mikhail Borodasto (github : [hadjdeh](https://github.com/hadjdeh){target="_blank"}).
+
+```{r}
+tirsfoot <- read.csv("data/SPA/SPA3/event_data_top5_leagues_18032024_(shots).csv")
+dim(tirsfoot)
+
+head(tirsfoot[c(100,3000,10000,20000,30000),
+              c("id", "startTime", "minute", "x","y", "venueName",
+                "type", "playerName", "teamName","score")], )
+
+```
+
+
+**Données climatiques de la Tunisie**  
+Déjà vu dans [STA3 : Statistique Multivariée]{style="color:#5396B0;"}
+```{r}
+clim <-read.csv2("data/SPA/SPA3/stations_Tunisie.csv")
+```
+
+**Données OSM sur Sousse**  
+Déjà vu dans [SPA1 : Résumé d'un semis de points]{style="color:#5396B0;"}
+```{r}
+#| message: false
+cafes <- st_read("data/SPA/SPA3/cafes_sousse.gpkg", quiet = TRUE)
+secteurs <- st_read("data/SPA/SPA3/sousse_centre.gpkg", quiet = TRUE)
+mer <- st_read("data/SPA/SPA3/sousse_mer.gpkg", quiet = TRUE)
+```
+
+<br>
+
+
+
+# 1. Agrégations spatiales
+
+Une des méthodes, simple, pour **passer des points aux surfaces** est d'**agréger** les données spatialement **selon des maillages administratifs/statistiques** (comme les gouvernorats) ou selon des **mailles géométriques** (des carreaux, des rectangles ou des hexagones). Il est alors possible de calculer une densité ou un résumé statistique (moyenne, médiane, minimum...) par maille. Au-delà de l'intérêt de la spatialisation des données ponctuelles, ces agrégations spatiales permettent de croiser différentes couches d'information (et notamment des données exprimées en raster) ou encore d'évaluer l'effet du MAUP Modifiable Areal Unit Problem (@openshaw_taylor1979).
+
+Pour réaliser cette première méthode passant des points aux surfaces, nous partons du tableau de données *Tirs au but*, décrivant la localisation de presque 35 000 tirs sur un terrain de foot "modèle", pendant la saison 2023-24 (11/8/23 au 17/3/24). Les matchs ont eu lieu dans différents stades, de taille variable, qui sont ici schématisés par un "terrain-modèle".
+
+Chaque tir est localisé sur ce terrain-modèle par des coordonnées *x* et *y*, selon respectivement la longueur et la largeur du terrain. Les valeurs de *x* supérieures à 50 correspondent au camp adverse. Les données *x y* étant codées sur une échelle de 0 à 100, nous décidons de les mettre aux dimensions d'un terrain de foot de niveau international (d'après la [Loi 1 du football sur Wikipédia](https://fr.wikipedia.org/wiki/Loi_1_du_football){target="_blank"}), soit 105m x 68m. 
+
+```{r}
+# Coordonnées théoriques aux dimensions 105m x 68m
+tirsfoot$x2 <- tirsfoot$x * 105 / 100
+tirsfoot$y2 <- tirsfoot$y * 68 /100
+
+```
+
+Nous représentons, dans un premier temps, l'ensemble des tirs, en mettant en lumière les tirs d'un joueur tunisien, Wahbi Khazri (en rouge) qui a maintenant raccroché, et d'un français, Kylian Mbappé (en bleu).
+
+```{r}
+
+# Cartographie de l'ensemble des tirs
+plot(tirsfoot$x2, tirsfoot$y2, xlim = c(0,105), ylim = c(0,68), col="grey40", pch=16, cex=0.3,
+     main="Localisation des tirs vers le but \n (en rouge : Wahbi Khazri ; en bleu : Kylian Mbappé)",
+     xlab = "Longueur d'un terrain de foot modèle (en m)",
+     ylab = "Largeur (en m)")
+
+# Sélection des tirs pour Khazri et Mbappé
+Mbappe <- tirsfoot[tirsfoot$playerName == "Kylian Mbappé",] 
+Khazri <- tirsfoot[tirsfoot$playerName == "Wahbi Khazri",]
+
+# ajout des points des 2 joueurs sur la première carte
+points(Mbappe$x2, Mbappe$y2, col="blue3", pch=16, cex=0.6)
+points(Khazri$x2, Khazri$y2, col="red", pch=16, cex=0.6)
+
+```
+
+::: {.callout-tip collapse="false"}
+## Commentaire
+
+Il apparaît nettement une zone préférentielle pour les tirs, en toute logique devant le but adverse (à droite du graphique).          
+Pour autant, on ne distingue pas nettement quelle est la zone ± 5m où les tirs ont été plus fréquents. Kylian Mbappé (en bleu) a tenté plus de fois des tirs au but que Wahbi Khazri, mais plus souvent devant le but (et plutôt sur la gauche).         
+Comment pourrait-on résumer les répartitions des tirs des 2 joueurs ?    
+[🤔]{style="font-size:60;"} humhum... vous avez vu dernièrement une ou des méthodes qui permettent de faire cela ;-)
+:::
+
+
+
+<br>
+Pour **passer des tirs ponctuels à des zones** :  
+**1/** on va tout d'abord créer un **maillage régulier**, en l'occurrence ici on choisit des hexagones, à partir de la fonction *`st_make_grid()`* de `sf`. 
+
+Voici le terrain de foot modèle découpé selon des hexagones de dimension 3m :
+```{r}
+#| code-overflow: wrap
+
+grille_hex <- st_make_grid(
+  st_polygon(list(rbind(c(0,0), c(105,0), c(105,68), c(0,68), c(0,0)))),  # définition de l'emprise, ici le terrain de foot modèle
+  cellsize = 3,         # dimension du maillage régulier (ici entre 2 points opposés)
+  what='polygons',      # type d'implantation de la sortie (polygones, centres la grille...)
+  square=FALSE)         # carreaux/rectangles avec TRUE / hexagones avec FALSE
+
+plot(grille_hex)
+```
+
+**2/** On calcule à présent une **valeur statistique pour chaque maille** à partir de la fonction *`sf::aggregate()`*, en l'occurrence ici le nombre de tirs au but dans chaque hexagone pour représenter la carte des densités par hexagone : 
+
+```{r}
+#| fig.width=6
+
+# transformation du dataframe en sf
+tirsfoot_sf <- st_as_sf(tirsfoot, coords = c("x2", "y2"))
+
+# calcul du nombre par mailles
+grille_hex_nbre <- aggregate(tirsfoot_sf["id"], grille_hex, FUN = length)
+names(grille_hex_nbre)[1] <- "count"
+
+# carte de la densité des tirs par hexagone
+mf_map(x = grille_hex_nbre,    ## fichier de départ
+       var = "count",          ## variable où nbre
+       type = "choro",         ## le type de carte
+       pal = "Greens",         ## la palette
+       breaks = "jenks",       ## la méthode de discrétisation
+       nbreaks = 5,            ## le nombre de classes
+       leg_title = "Nombre de tirs / hexagone",  ## le titre de la légende
+       col_na = "grey90",      ## la couleur pour les valeurs manquantes
+       leg_val_rnd = 0,        ## l'arrondi des valeurs de la légende
+       leg_frame = TRUE,       ## ajout d'un cadre pour la légende + fond
+       leg_pos = 'bottomleft'
+) 
+mf_scale(scale_units = "m", pos = 'bottomright' )
+mf_credits("Source : https://github.com/hadjdeh", pos = 'rightbottom')
+mf_title("D'où les joueurs ont tiré au but lors des matchs \ndes 5 plus grandes ligues européennes de la saison 2023-24 ?", line=3, inner = TRUE)
+
+# on ajoute les points médians des tirs de Mbappé et de Khazri 
+pt_Mbappe <- st_point(c(median(Mbappe[, "x2"]), median(Mbappe[, "y2"])))  
+mf_map(pt_Mbappe,
+       col = "blue3",
+       cex = 1.5,
+       pch = 15,
+       add = TRUE)
+pt_Khazri <- st_point(c(median(Khazri[, "x2"]), median(Khazri[, "y2"])))  
+mf_map(pt_Khazri,
+       col = "red",   
+       cex = 1.5,
+       pch = 15,
+       add = TRUE)
+
+# Et pour aller plus loin sur la carto, avec mapsf::mf_annotation
+mf_annotation(x = as.numeric(pt_Mbappe), "Mbappe", cex = 1.5, pch = 15, pos='topleft', halo = TRUE, col_arrow = "blue3", col_txt = "blue3")
+mf_annotation(x = as.numeric(pt_Khazri), "Khazri", cex = 1.5, pch = 15, pos='bottomleft', halo = TRUE, col_arrow = "red", col_txt = "red")
+
+```
+
+On peut voir assez nettement apparaître la zone préférentielle pour les tirs et la répartition quasi-symétrique de part et d'autre du terrain. Remarquez que les points médians des 2 joueurs sont très proches.
+
+
+
+::: {.callout-caution icon="false"}
+## A vous de jouer
+
+Pour les plus rapides et/ou pour vous entraîner, vous pouvez réaliser les mêmes étapes sur les équipements à Sousse et comparer les différentes distributions spatiales. Que constatez-vous ?
+:::
+
+Cette première méthode, l'**agrégation spatiale**, est une méthode relativement simple à mettre en œuvre. Dans l'exemple des *Tirs au but* et son analyse assez sommaire, nous avons calculé une densité (en l'occurrence, le nombre de tirs) par hexagone (de dimension identique ici).            
+Plus généralement, plusieurs choix sont possibles : on peut jouer sur le **choix du résumé statistique** (nombre, médiane...), sur la **forme du maillage** (administratif ou régulier -carreaux, rectangles ou hexagones-) et sur la **dimension** (niveau administratif, résolution de la grille).       
+
+<br>
+
+
+
+
+
+# 2. Lissages de phénomènes continus
+
+<br>  
+
+Les agrégations peuvent être utilisées pour des phénomènes continus, mais elles sont d'un intérêt assez pauvre. Du fait du caractère continu (« en tout point de l'espace »), il peut être intéressant d'**estimer la valeur du phénomène justement en tout point**, seulement à partir des points échantillonnés, c'est-à-dire d'**interpoler** les données. Très souvent, ces méthodes, appelées « **géostatistiques** », reposent sur le principe d'**autocorrélation spatiale**. 
+
+::: {.callout-note collapse="false"}
+## Autocorrélation spatiale
+
+L'**autocorrélation spatiale** désigne le fait que des objets proches (dans l’espace) tendent à posséder des caractéristiques similaires. C'est un concept important en géographie : "*(...) the first law of geography: everything is related to everything else, but near things are more related than distant things.*" (@tobler1970)
+
+En d'autres termes, on cherche à évaluer si les valeurs d'une variable sont fonction de la localisation géographique. Cela permet de détecter la présence d’une **structure géographique**, mais elle est aussi souvent une des premières étapes d'une **interpolation des données** (= procédure permettant d’estimer la valeur d’attributs pour des sites non-échantillonnés, à partir de valeurs et des positions de points se situant dans une même région).
+
+
+:::
+
+Sous `R`, il existe plusieurs packages autour de l'interpolation des données, principalement dans le monde du **raster**. Dans ce module, la démonstration sera construite à partir des *packages* [`gstat`](https://cran.r-project.org/web/packages/gstat/index.html){target="_blank"}^[Très souvent utilisé par d'autres packages d'interpolation des données ou plus largement par des packages de manipulation des données spatiales, comme 
+`terra`.] (assez classique en géostatistique) et [`terra`](https://cran.r-project.org/web/packages/terra/index.html){target="_blank"}.        
+La plupart des méthodes reposent sur la **construction d'un modèle** prenant en compte les mesures échantillonnées et leur localisation (distance), qu'on applique **ensuite à l'ensemble de l'espace** défini par une grille, des points de grille ou le plus souvent un raster.  
+
+Pour plus d'informations, vous trouverez plusieurs ressources sur internet, en particulier l'ouvrage en ligne de @Pebesma_Bivand2023, et un exemple plus que classique de la pollution des sols le long d'une portion de la Meuse^[En recherchant sur un moteur de recherche, meuse + R, vous trouverez de très nombreux pas à pas, développements méthodologiques, etc. Aussi possible en mettant un autre logiciel.].
+
+
+:::: {.columns}
+
+::: {.column width="68%"}
+
+Pour l'**exemple d'application**, nous allons reprendre le tableau des **données climatiques sur la Tunisie**, utilisé dans [*STA3 : Statistique Multivariée*]{style="color:#5396B0;"}.   
+Rappelez-vous, quelles sont les principales structures spatiales observées, en termes de températures et de précipitations (cf. carte ci-contre) ? Ces grandeurs décrivent des **phénomènes continus dans l'espace**, i.e. tout point de l'espace peut être caractérisé par une température ou une quantité de précipitation.
+
+
+**Préparation des données :**   
+**1/** Transformation du tableau de données climatiques sur la Tunisie en données spatiales [`sf`](https://cran.r-project.org/web/packages/sf/index.html){target="_blank"}, puis en *SpatVector* (le type d'objet vectoriel sous [`terra`](https://cran.r-project.org/web/packages/terra/index.html){target="_blank"}). 
+
+```{r}
+#| code-overflow: wrap
+
+# du dataframe vers sf
+clim_sf <- st_as_sf(clim, coords = c("LONGITUDE", "LATITUDE"), crs = 4326)
+
+# projection en ETRS89-extended / LAEA Europe 
+clim_sf <- st_transform(clim_sf, crs = 3035)
+
+# création d'un fichier SpatVector 
+clim_spatv <- vect(clim_sf)
+```
+
+
+:::
+
+::: {.column width="2%"}
+
+:::
+
+::: {.column width="30%"}
+
+```{r}
+#| echo: false
+#| fig-width: 3
+
+mf_map(reg, col="bisque", border="white")
+mf_map(x = clim_sf,       ## fichier de départ
+       var = "P.mm",      ## variable Précipitations
+       type = "choro",    ## le type de carte, ici choroplèthe
+       pal = "Blues",     ## la palette
+       breaks =  c(0, 150, 300, 450, 600, 750),  ## la méthode de discrétisation
+       leg_title = "Total annuel (en mm)",  ## le titre de la légende
+       leg_val_rnd = -1,
+       add = TRUE
+)
+mf_credits("Source : Fichier envoyé par Salem Dahech, 2024")
+mf_title("Précipitations en Tunisie")
+mf_scale(pos = 'bottomright')
+
+```
+
+:::
+
+::::
+
+**2/** Création d'un raster (ici arbitraitement de 1 km), qui sera utilisée dans plusieurs des méthodes d'interpolation :
+```{r}
+#| code-overflow: wrap
+
+clim_r_1km <- rast(reg,        # en prenant, par ex, les régions pour l'emprise spatiale
+                   res=1000)   # de résolution 1000 soit 1km (dans le CRS ici)
+
+```
+
+::: {.callout-note collapse="true"}
+## Code R mapsf pour la création de la carte
+
+```{r}
+#| eval: false
+
+mf_map(reg, col="bisque", border="white")
+mf_map(x = clim_sf,       ## fichier de départ
+       var = "P.mm",      ## variable Précipitations
+       type = "choro",    ## le type de carte, ici choroplèthe
+       pal = "Blues",     ## la palette
+       breaks =  c(0, 150, 300, 450, 600, 750),  ## discrétisation manuelle
+       leg_title = "Total annuel (en mm)",  ## le titre de la légende
+       leg_val_rnd = 0,
+       add = TRUE
+)
+mf_credits("Source : Fichier envoyé par Salem Dahech, 2024")
+mf_title("Précipitations en Tunisie")
+mf_scale(pos = 'bottomright')
+```
+:::
+
+<br>
+
+
+
+## • Polygones de Thiessen ou de Voronoï
+
+Assez simple à mettre en œuvre, la méthode des **polygones de Thiessen/Voronoï** estime la valeur d’un point, à partir de celles de ses voisins et de leur distance, en utilisant la **méthode du plus proche voisin** : la valeur de chaque cellule de la surface est égale à la valeur de la donnée située le plus près.  La taille et la forme des polygones ne dépendera donc que de la distribution des points d’échantillonnage.   
+
+
+**Elle transforme le phénomène continu en un modèle spatialement discret** (@caloz_collet2011) et ne présuppose pas d'étude statistique au préalable (notamment d'autocorrélation spatiale).
+
+Vous verrez peut-être prochainement, dans [[SPA3] Modéliser des aires d'influence]{style="color:#5396B0;"}, la fonction *`sf::st_voronoi()`*, pour faire des polygones de Thiessen/Voronoï. Ici, nous proposons une autre manière, avec le package [`terra`](https://cran.r-project.org/web/packages/terra/index.html){target="_blank"}.
+
+
+:::: {.columns}
+
+::: {.column width="68%"}
+
+Création des polygones à partir des points, puis découpage selon le contour de la Tunisie : 
+```{r}
+#| code-overflow: wrap
+#| fig-cap: 
+#|   - "Création des polygones"
+#|   - "Découpage selon la Tunisie"
+#| fig-align: left
+#| layout-ncol: 2
+#| layout-valign: top
+
+# création polygones de Voronoï/Thiessen
+poly_voronoi <- voronoi(clim_spatv)
+plot(poly_voronoi)
+points(clim_spatv, col = "seagreen")
+
+# fusion des régions et format SpatVector
+contour_tunisie <- vect(st_union(reg))  
+
+# découpage des polygones selon le contour 
+poly_voronoi <- crop(poly_voronoi, contour_tunisie)
+plot(poly_voronoi)
+points(clim_spatv, col = "seagreen")
+
+```
+
+:::
+
+::: {.column width="2%"}
+
+:::
+
+::: {.column width="30%"}
+
+
+```{r}
+#| echo: false
+#| fig-width: 3
+
+# mapsf ne lit pas (encore ?) les objets SpatVect, alors transformation 
+poly_voronoi_sf <- st_as_sf(poly_voronoi) 
+
+mf_map(x = poly_voronoi_sf,   ## fichier de départ
+       var = "P.mm",          ## variable Précipitations
+       type = "choro",        ## le type de carte, ici choroplèthe
+       pal = "Blues",         ## la palette
+       breaks =  c(0, 150, 300, 450, 600, 750),  ## discrétisation manuelle
+       leg_title = "Total annuel (en mm)",  ## le titre de la légende
+       leg_pos = 'topleft',
+       leg_val_rnd = 0,
+)
+mf_title("Précipitations - polygones de Voronoï")
+mf_credits("Source : Fichier envoyé par Salem Dahech, 2024")
+mf_map(clim_sf, col = "seagreen", cex = 2, add = TRUE)
+mf_scale(pos = 'bottomright')
+
+```
+:::
+
+::::
+
+
+::: {.callout-note collapse="true"}
+## Code R mapsf pour la création de la carte
+```{r}
+#| eval: false
+
+# mapsf ne lit pas (encore ?) les objets SpatVect, alors transformation 
+poly_voronoi_sf <- st_as_sf(poly_voronoi) 
+
+mf_map(x = poly_voronoi_sf,   ## fichier de départ
+       var = "P.mm",          ## variable Précipitations
+       type = "choro",        ## le type de carte, ici choroplèthe
+       pal = "Blues",         ## la palette
+       breaks =  c(0, 150, 300, 450, 600, 750),  ## discrétisation manuelle
+       leg_title = "Total annuel (en mm)",  ## le titre de la légende
+       leg_pos = 'topleft',
+       leg_val_rnd = 0,
+)
+mf_title("Précipitations - polygones de Voronoï")
+mf_credits("Source : Fichier envoyé par Salem Dahech, 2024")
+mf_scale(pos = 'bottomright')
+mf_map(clim_sf, col = "seagreen", cex = 2, add = TRUE) # ajout des points des stations
+
+```
+
+:::
+
+<br>
+
+## • Inverse de la distance pondérée (IDW)
+
+
+La méthode IDW (*inverse distance weighting*), assez classique également, repose sur le calcul de **moyennes mobiles pondérées par l’inverse de la distance élevée à une puissance**. À partir d'une grille régulière ou d'un raster, on réalise pour chaque cellule : 
+
+- Sélection des *n* plus proches voisins ou selon un voisinage d'une certaine portée,
+
+- Calcul de la moyenne de leurs attributs en pondérant par l’inverse de la distance élevée à une puissance (souvent 2).
+
+On peut donc ajuster la méthode en choisissant les voisins retenus (c’est-à-dire le « **rayon d’influence** ») et aussi la **puissance** (lorsque celle-ci tend vers 1, la décroissance de l’influence d’un point tend vers une fonction linéaire ; plus elle est élevée, plus la décroissance augmente rapidement ; égale à 0, elle correspond à la triangulation de Delaunay et à une absence de l'effet de la distance).
+
+Sous `R`, nous allons utiliser la fonction générique de géostatistique *`gtat()`* du package [`gstat`](https://cran.r-project.org/web/packages/gstat/index.html){target="_blank"} qui permet de choisir une méthode d'interpolation (ici en précisant *nmax* et *idp*, on indiquera IDW, le nombre de points et la puissance). On le fait sur un tableau de données avec des colonnes "x" et "y" (<span style="color:#cd0000;">attention : le non respect du libellé des colonnes peut conduire à des galères...</span>). 
+
+:::: {.columns}
+
+::: {.column width="68%"}
+
+```{r}
+#| eval: false
+#| code-overflow: wrap
+
+# retour à un dataframe avec 2 colonnes x et y
+clim_df <- data.frame(geom(clim_spatv)[, c("x", "y")], as.data.frame(clim_spatv))
+
+# construction d'un modèle 
+model_gs <- gstat(data = clim_df,     
+                  locations=~x+y, 
+                  id = "P.mm", 
+                  formula = P.mm ~ 1, 
+# 1~ pour ne pas prendre de co-variables ici (comme l'altitude, etc.) 
+                  nmax=7, 
+                  set=list(idp = 2))
+
+# application du modèle à l'ensemble de l'emprise spatiale
+idw <- interpolate(clim_r_1km, model_gs, debug.level=0)
+# l'option debug.level=0 permet de pas afficher ici les messages, i.e. le modèle retenu "[inverse distance weighted interpolation]"
+
+# découpage du résultat selon le contour 
+idw_tun <- mask(idw, reg)
+
+# cartographie
+# du raster
+mf_raster(idw_tun$P.mm.pred,
+          pal = "Blues", 
+          type = "interval",
+          breaks =  seq(0, 750, 10),  
+)
+# ajout des stations
+mf_map(clim_sf, col = "seagreen", cex = 2, add = TRUE)
+# ajout des graticules (latitudes et longitudes)
+mf_graticule(reg, lwd=0.5, cex = .6)
+# ajout d'un contour
+mf_map(st_union(reg), border = "grey40", col=NA, add=TRUE)
+# ajout de la source
+mf_credits("Source : Fichier envoyé par Salem Dahech, 2024")
+# ajout de l'échelle
+mf_scale(pos = 'bottomright')
+# ajout du N
+mf_arrow()
+# ajout du titre
+mf_title("IDW (puissance : 2)")
+
+
+
+```
+
+
+:::
+
+::: {.column width="2%"}
+
+:::
+
+::: {.column width="30%"}
+
+
+**Carte des précipitations selon la méthode IDW**
+
+```{r}
+#| echo: false
+#| fig-width: 3
+#| warning: false
+
+# ré-exécution du code, sinon blocage
+clim_df <- data.frame(geom(clim_spatv)[, c("x", "y")], as.data.frame(clim_spatv))
+model_gs <- gstat(data = clim_df,     
+                  locations=~x+y, 
+                  id = "P.mm", 
+                  formula = P.mm ~ 1, 
+                  nmax=7, 
+                  set=list(idp = 2))
+idw <- interpolate(clim_r_1km, model_gs, debug.level=0)
+idw_tun <- mask(idw, reg)
+
+mf_raster(idw_tun$P.mm.pred,
+          pal = "Blues", 
+          type = "interval",
+          breaks =  seq(0, 750, 10),
+          leg_pos = NA
+)
+# ajout des stations
+mf_map(clim_sf, col = "seagreen", cex = 2, add = TRUE)
+# ajout des graticules (latitudes et longitudes)
+mf_graticule(reg, lwd=0.5, cex = .6)
+# ajout d'un contour
+mf_map(st_union(reg), border = "grey40", col=NA, add=TRUE)
+# ajout de la source
+mf_credits("Source : Fichier envoyé par Salem Dahech, 2024")
+# ajout de l'échelle
+mf_scale(pos = 'bottomright')
+# ajout du N
+mf_arrow()
+# ajout du titre
+mf_title("IDW (puissance : 2)")
+
+
+
+```
+
+![](img/Leg_Preci.png)
+
+:::
+
+::::
+
+::: {.callout-note collapse="true"}
+## Autre procédure un peu plus rapide qui utilise le package [`terra`](https://cran.r-project.org/web/packages/terra/index.html){target="_blank"}
+
+```{r}
+#| layout-ncol: 3
+#| code-overflow: wrap
+#| fig-width: 3
+#| eval: false
+
+idw_terra <- interpIDW(clim_r_1km, clim_spatv, field = "P.mm", radius=500000, power=2, maxPoints=7)
+idw_terra_tun <- mask(idw_terra, reg)
+
+mf_raster(idw_terra_tun,
+          pal = "Blues", 
+          type = "interval",
+          breaks =  seq(0, 750, 10),  
+          leg_pos = NA
+)
+mf_map(clim_sf, col = "seagreen", cex = 2, add = TRUE)
+mf_title("IDW, p=2, 7 pts, p=500km")
+# ajout des graticules (latitudes et longitudes)
+mf_graticule(reg, lwd=0.5, cex = .6)
+# ajout d'un contour
+mf_map(st_union(reg), border = "grey40", col=NA, add=TRUE)
+# ajout de la source
+mf_credits("Source : Fichier envoyé par Salem Dahech, 2024")
+# ajout du N
+mf_arrow()
+# ajout de l'échelle
+mf_scale(pos = 'bottomright')
+
+
+```
+:::
+
+En faisant varier les paramètres de la méthode : 
+```{r}
+#| layout-ncol: 3
+#| code-overflow: wrap
+#| fig-width: 3
+#| echo: false
+
+idw_terra <- interpIDW(clim_r_1km, clim_spatv, field = "P.mm", radius=500000, power=2, maxPoints=7)
+idw_terra_tun <- mask(idw_terra, reg)
+
+idw_terra_bis <- interpIDW(clim_r_1km, clim_spatv, field = "P.mm", radius=500000, power=1, maxPoints=7)
+
+idw_terra_ter <- interpIDW(clim_r_1km, clim_spatv, field = "P.mm", radius=500000, power=4, maxPoints=7)
+
+mf_raster(idw_terra_tun,
+          pal = "Blues", 
+          type = "interval",
+          breaks =  seq(0, 750, 10),  
+          leg_pos = NA
+)
+mf_map(clim_sf, col = "seagreen", cex = 2, add = TRUE)
+mf_title("IDW, p=2, 7 pts, p=500km")
+# ajout des graticules (latitudes et longitudes)
+mf_graticule(reg, lwd=0.5, cex = .6)
+# ajout d'un contour
+mf_map(st_union(reg), border = "grey40", col=NA, add=TRUE)
+# ajout de la source
+mf_credits("Source : Fichier envoyé par Salem Dahech, 2024")
+# ajout du N
+mf_arrow()
+
+
+
+mf_raster(mask(idw_terra_bis, reg),
+          pal = "Blues", 
+          type = "interval",
+          breaks =  seq(0, 750, 10), 
+          leg_pos = NA
+)
+mf_map(clim_sf, col = "seagreen", cex = 2, add = TRUE)
+mf_title("IDW, p=1, 7 pts, p=500km")
+mf_graticule(reg, lwd=0.5, cex = .6)
+# ajout d'un contour
+mf_map(st_union(reg), border = "grey40", col=NA, add=TRUE)
+
+
+mf_raster(mask(idw_terra_ter, reg),
+          pal = "Blues", 
+          type = "interval",
+          breaks =  seq(0, 750, 10),  
+          leg_pos = NA
+)
+mf_map(clim_sf, col = "seagreen", cex = 2, add = TRUE)
+mf_title("IDW, p=4, 7 pts, p=500km")
+# ajout de l'échelle
+mf_scale(pos = 'bottomright')
+mf_graticule(reg, lwd=0.5, cex = .6)
+# ajout d'un contour
+mf_map(st_union(reg), border = "grey40", col=NA, add=TRUE)
+
+
+
+```
+
+![](img/Leg_Preci.png){width=40% fig-align="center"}
+
+::: {.callout-tip collapse="false"}
+## Commentaire
+
+Les nuances sur ces 3 cartes avec des paramètres différents sont assez subtiles, à cette échelle et avec la palette choisie. En choisissant exprès une palette divergente, on peut remarquer une importance plus « diluée » des valeurs des stations pour la puissance 1 à l'inverse de p = 4.
+```{r}
+#| layout-ncol: 3
+#| code-overflow: wrap
+#| fig-width: 3
+#| echo: false
+
+mf_raster(idw_terra_tun,
+          pal = "PRGn", 
+          type = "interval",
+          breaks =  seq(0, 750, 10),  
+          leg_pos = NA
+)
+mf_map(clim_sf, col = "grey30", cex = 1, add = TRUE)
+mf_title("IDW, p=2, 7 pts, p=500km")
+
+
+mf_raster(mask(idw_terra_bis, reg),
+          pal = "PRGn", 
+          type = "interval",
+          breaks =  seq(0, 750, 10), 
+          leg_pos = NA
+)
+mf_map(clim_sf, col = "grey30", cex = 1, add = TRUE)
+mf_title("IDW, p=1, 7 pts, p=500km")
+
+mf_raster(mask(idw_terra_ter, reg),
+          pal = "PRGn", 
+          type = "interval",
+          breaks =  seq(0, 750, 10),  
+          leg_pos = NA
+)
+mf_map(clim_sf, col = "grey30", cex = 1, add = TRUE)
+mf_title("IDW, p=4, 7 pts, p=500km")
+
+
+```
+:::
+
+
+<br>
+
+## • Surfaces de tendance
+
+L’objectif de cette méthode est d’approcher la surface, déterminée à partir des points de mesure, par une **surface polynomiale** pouvant être **de plusieurs ordres**. Le choix d'un ordre 1, soit une « surface de tendance du premier degré », rend compte d'un gradient spatial linéaire (de type Z = a + bX + cY), par ex un gradient SW-NE. Plus on augmente l'ordre, plus on prend en compte les effets plus locaux, mais on s'écarte alors du pouvoir explicatif de la variabilité spatiale à large échelle et il peut s'avérer difficile d'interpréter le résultat de la modélisation. 
+
+:::: {.columns}
+
+::: {.column width="68%"}
+
+Sous `R`, toujours avec la fonction générique *`gstat()`* et en précisant le degré ou l'ordre de la surface de tendance (*degree =*) :
+
+```{r}
+#| eval: false
+model_gs1 <- gstat(data = clim_df,     
+                  locations=~x+y, 
+                  id = "P.mm", 
+                  formula = P.mm ~ 1, 
+                  degree = 1)
+surftend_1 <- interpolate(clim_r_1km, model_gs1, debug.level=0)
+surftend_1_tun <- mask(surftend_1, reg)
+plot(surftend_1_tun$P.mm.pred)
+```
+
+Les totaux annuels de précipitations diminuent du nord au sud de la Tunisie, jusqu'à atteindre des valeurs négatives, ce qui est impossible ! Cela est notamment lié à la quasi-absence de stations dans le sud de la Tunisie et à un effet qu'on appelle « effet de bord ». Plus généralement, cela montre bien la prudence à avoir, en général, sur les résultats des interpolations (spatiales ou non). 
+
+:::
+
+::: {.column width="2%"}
+
+:::
+
+::: {.column width="30%"}
+
+```{r}
+#| echo: false
+#| fig-width: 3
+
+model_gs1 <- gstat(data = clim_df,     
+                  locations=~x+y, 
+                  id = "P.mm", 
+                  formula = P.mm ~ 1, 
+                  degree = 1)
+surftend_1 <- interpolate(clim_r_1km, model_gs1, debug.level=0)
+surftend_1_tun <- mask(surftend_1, reg)
+plot(surftend_1_tun$P.mm.pred)
+```
+
+:::
+
+::::
+
+En faisant varier l'ordre et en choisissant une discrétisation identique (excluant les valeurs inférieures à 0) : 
+
+```{r}
+#| layout-ncol: 3
+#| fig-width: 3
+
+# Surface de tendance d'ordre 2
+model_gs2 <- gstat(data = clim_df,     
+                  locations=~x+y, 
+                  id = "P.mm", 
+                  formula = P.mm ~ 1, 
+                  degree = 2)
+surftend_2 <- interpolate(clim_r_1km, model_gs2, debug.level=0)
+surftend_2_tun <- mask(surftend_2, reg)
+
+# Surface de tendance d'ordre 3
+model_gs3 <- gstat(data = clim_df,     
+                  locations=~x+y, 
+                  id = "P.mm", 
+                  formula = P.mm ~ 1, 
+                  degree = 3)
+surftend_3 <- interpolate(clim_r_1km, model_gs3, debug.level=0)
+surftend_3_tun <- mask(surftend_3, reg)
+
+surftend_1_tun$P.mm.pred[surftend_1_tun$P.mm.pred < 0,] <- NA
+surftend_2_tun$P.mm.pred[surftend_2_tun$P.mm.pred < 0,] <- NA
+surftend_3_tun$P.mm.pred[surftend_3_tun$P.mm.pred < 0,] <- NA
+
+mf_map(st_union(reg), col="grey90")
+mf_raster(surftend_1_tun$P.mm.pred,
+          pal = "Blues", 
+          type = "interval",
+          breaks =  seq(0, 750, 10),  
+          leg_pos = NA,
+          add=TRUE
+)
+mf_map(st_union(reg), border = "grey40", col=NA, add=TRUE)
+mf_title("Surf Tend ordre = 1")
+mf_graticule(reg, lwd=0.5, cex = .6)
+mf_credits("Source : Fichier envoyé par Salem Dahech, 2024")
+mf_arrow()
+
+mf_map(st_union(reg), col="grey90")
+mf_raster(surftend_2_tun$P.mm.pred,
+          pal = "Blues", 
+          type = "interval",
+          breaks =  seq(0, 750, 10),  
+          leg_pos = NA,
+          add=TRUE
+)
+mf_map(st_union(reg), border = "grey40", col=NA, add=TRUE)
+mf_title("Surf Tend ordre = 2")
+mf_graticule(reg, lwd=0.5, cex = .6)
+mf_map(st_union(reg), border = "grey40", col=NA, add=TRUE)
+
+mf_map(st_union(reg), col="grey90")
+mf_raster(surftend_3_tun$P.mm.pred,
+          pal = "Blues", 
+          type = "interval",
+          breaks =  seq(0, 750, 10),  
+          leg_pos = NA,
+          add=TRUE
+)
+mf_map(st_union(reg), border = "grey40", col=NA, add=TRUE)
+mf_title("Surf Tend ordre = 3")
+mf_graticule(reg, lwd=0.5, cex = .6)
+mf_map(st_union(reg), border = "grey40", col=NA, add=TRUE)
+mf_scale(pos = 'bottomright')
+
+
+```
+![](img/Leg_Preci.png){width=40% fig-align="center"}
+
+
+::: {.callout-tip collapse="true"}
+## Quelques remarques
+
+D'un point de vue pédagogique, nous avons voulu distinguer sur les cartes les valeurs négatives. Mais nous aurions pu décider de les mettre à 0 mm/an.   
+Les faibles différences entre les 3 ordres ne sont pas liées qu'à la palette utilisée ! Elles montrent ici l'importance du gradient N-S.   
+   
+Les **surfaces de tendance** sont des modèles statistiques (comme la régression), il est donc possible de calculer leur **pouvoir explicatif** et d'analyser les **écarts au modèle**, i.e. les résidus.  
+Les surfaces de tendance sont pertinentes lorsqu'on observe un gradient dans les données, c'est beaucoup moins le cas avec de nombreuses variations locales. En climatologie, elles sont parfois utilisées pour dégager les grandes structures climatiques (variation zonale = en fonction de la latitude ; continentalité ; gradient altitudinal), pour ensuite spatialiser plus finement les variations spatiales.  
+
+:::
+
+::: {.callout-caution icon="false"}
+## A vous de jouer
+
+Pour les plus rapides et/ou pour s'entraîner, réalisez une ou plusieurs cartes d'interpolation des températures minimales et maximales.
+:::
+
+<br>
+
+## • De l'analyse variographique à l'interpolation par krigeage
+
+Une autre famille de méthodes ne reposent pas sur une approche déterministe comme précédemment, ce sont les méthodes autour du krigeage, développées par @matheron1970. Plusieurs auteurs préfèrent d'ailleurs réserver le terme de « méthodes géostatistiques » pour celles-ci.  
+
+Elles reposent sur 2 étapes :
+
+• la caractérisation de la structure spatiale ou **analyse variographique**
+
+• puis l'estimation spatiale ou **krigeage**.
+ 
+À nouveau, plusieurs packages sous `R` permettent de réaliser ces méthodes. On citera en particulier le package [`gstat`](https://cran.r-project.org/web/packages/gstat/index.html){target="_blank"},  [`terra`](https://cran.r-project.org/web/packages/terra/index.html){target="_blank"} et [`automap`](https://cran.r-project.org/web/packages/automap/index.html){target="_blank"}. Ce dernier permet, comme son nom peut l'évoquer, d'automatiser l'ensemble des étapes. 
+
+Nous montrons ici les étapes à partir des données de précipitations, même si le nombre de stations est trop faible. De plus, la structure spatiale ici « se limite » à un gradient, ce qui limite l'intérêt du krigeage.
+
+### Analyse variographique
+
+La première étape repose sur la **construction d'un semi-variogramme empirique**, permettant d’estimer **comment la « dépendance » spatiale varie avec la distance**. 
+
+La fonction *`gstat::variogram()`* calcule les valeurs du semi-variogramme : 
+```{r}
+# Semi-variogramme expérimental / empirique
+Vario <- variogram(P.mm~1, data=clim_sf)
+# 1~ pour ne pas prendre de co-variables ici (comme l'altitude, etc.) 
+      
+head(Vario) 
+```
+np : nombre de paires, dist : distance, gamma : la valeur de semi-variance 
+
+```{r}
+plot(Vario, 
+     plot.numbers = TRUE) # pour ajouter le nombre de paires pour chaque point
+```
+
+Le choix du pas influence l’allure du variogramme. Il doit, au moins, être inférieur à la moitié de la plus grande distance entre les points de mesure utilisés (@Journel_Huijbregts1976). Il est possible de le préciser dans la fonction *`variogram()`* avec *`width =`*, ou d'utiliser la distance par défaut.
+
+La lecture d'un variogramme :
+
+- le **palier et sa portée** (qui montre la limite de l'influence spatiale d'un point sur ces voisins) ; 
+
+- le **comportement avant le palier** (variation linéraire, exponentielle...) ; 
+
+- l'importance de l'**effet pépite** à proximité de l'origine (qui témoigne des variations locales) ; 
+
+- et enfin le **comportement directionnel** (anisotropie).
+
+
+Ici, dans l'exemple des précipitations en Tunisie, on n'observe pas de palier mais une augmentation assez continue des valeurs de semivariance avec la distance, qui témoigne d'un gradient.
+
+L'analyse directionnelle ne donne pas de résultats plus probants. Le gradient s'observe très nettement selon la direction 0°, soit du N au S (sans surprise !), et dans une moindre mesure selon 135° (SE-NW).        
+Rappelons que le nombre de points ici reste faible pour ce type d'analyse.
+
+```{r}
+
+# selon les directions
+vario_directionnel <- variogram(P.mm~1, data=clim_sf,
+                                alpha = c(0, 45, 90, 135)) # soit N-S, NE-SW, E-W, SE-NW
+plot(vario_directionnel)
+
+```
+
+Pour trouver ensuite l'ajustement, on peut le faire automatiquement ou contraindre un ajustement selon un certain modèle. Ici, pour l'exemple, nous montrons, sans commenter les résultats, la procédure R pour un ajustement sphérique (qui ne se justifie pas à la lecture du variogramme). 
+
+```{r}
+## Ajustement du semi-variogramme 
+Vario.fit <- fit.variogram(Vario, vgm("Sph")) # Modèle d'ajustement (ici sphérique) 
+Vario.fit
+# Nug / psill >= effet pépite
+
+```
+
+<br>
+
+### Le krigeage
+
+Après la lecture du variogramme puis la sélection d'un modèle d'ajustement, on applique l'interpolation à l'ensemble de la zone d'étude, c'est ce qu'on appelle le « **krigeage** ». Il fait référence à une famille de méthodes (krigeage simple, ordinaire, universel, co-krigeage...). Pour cela et comme déjà vu, auparavant, on va créer une grille...
+
+```{r}
+
+# création d'une grille (en points) 
+clim.grid <- st_make_grid(reg, what = "centers", cellsize = 1000)
+# Limit
+clim.grid <- st_intersection(clim.grid, reg)
+
+# Krigeage : resultat <- krige(Z_pour_data ~ 1, tabdata_depart, grille, model = modèle_étape_précédente)
+krigeage <- krige(P.mm~1, clim_sf, clim.grid, model=Vario.fit) 
+plot(krigeage)
+
+```
+
+Un krigeage produit 2 champs comme résultats : les valeurs estimées (*.pred*) et la qualité de l'ajustement (*.var*). 
+
+La sortie d'un krigeage *via* *`gstat`* est un `sf` de points, qu'on peut traiter, cartographier, etc : 
+```{r}
+head(krigeage)
+```
+
+
+
+### Avec *`automap`*
+
+Attention : `automap` utilise des objets spatiaux *`sp`* et non *`sf`*. La fonction *`as_Spatial()`* permet de transformer le type d'objet.
+
+```{r}
+AutoKrigeage <- autoKrige(formula = P.mm ~ 1,
+                          input_data = as_Spatial(clim_sf), 
+                          new_data = as_Spatial(clim.grid))
+head(AutoKrigeage[[1]])
+plot(AutoKrigeage)
+```
+
+::: {.callout-tip collapse="false"}
+## Commentaire
+
+Les cartes des krigeages montrent bien le gradient N-S, à nouveau, avec une confiance dans l'estimation des valeurs qui diminuent inversement, ce qui s'explique par la localisation des stations météorologiques.
+
+:::
+
+::: {.callout-caution icon="false"}
+## A vous de jouer
+
+Pour les plus rapides et/ou pour vous entraîner, vous pouvez réaliser les mêmes étapes à partir des mesures de température réalisées par Sami Charfi et Salem Dahech. Cette fois-ci, il y a beaucoup plus de points, le poids statistique est renforcé. Par contre, les mesures réalisées sur des transects limitent la validité spatiale des valeurs estimées.   
+Alors, observe-t-on un îlot de chaleur urbain ?
+:::
+
+<br>
+
+
+# 3. Lissages de phénomènes discrets 
+
+<br>  
+
+Deux méthodes principales pour représenter de manière continue des données discrètes :
+
+- Le **lissage par potentiel**, pour représenter une quantité de « ressources » (populations, richesses...) présentes dans un voisinage donnée autour de ce lieu.
+- Le **lissage par noyaux (kernels)**, pour représenter la présence/absence d’un phénomène dans un voisinage, identifier les zones de forte concentration du phénomène. C'est cette deuxième méthode qui sera développée ici.
+
+
+## • Lissage par noyaux de densité (Kernel Density Estimation)
+
+**Principe général** :
+
+La méthode des noyaux de densité, dite aussi méthode KDE (Kernels Density Estimation), repose sur un principe commun à l’ensemble des cartes lissées : la prise en compte du **voisinage des lieux** observés. La présence d’un phénomène en un point i de l’espace étant supposée indissociable de celle de ses voisins, la densité du phénomène dans le voisinage de i peut être estimée par la **quantité d’observations qui se trouvent à proximité de i, rapportée à la surface de ce voisinage**. Chaque lieu est ainsi décrit non pas par l’absence/présence d’un phénomène mais par l’intensité (=la densité) du phénomène observé dans le voisinage de ce lieu. 
+
+Cette méthode permet ainsi de faire apparaître des **continuités de tendance dans l’espace**. A l'œil nu, ces concentrations ne sont pas toujours lisibles sur les cartes de semis de points, en raison de la fréquente surcharge d'information. La méthode de lissage par noyaux permet de transformer cette information ponctuelle discrète (absence/présence d'un phénomène) en une **surface de densité** qui représente l'intensité du phénomène étudié en tout point de l'espace.
+
+
+**Procédure** :
+
+::: {layout="[30,70]"}
+::: {first-column}
+(1) Création d’une grille d’estimation, maillant l’espace étudié 
+(2) Sur le centre de chaque carreau de la grille (point d’estimation des densités), on place une « boîte » en forme de cloche au sein de laquelle on compte le nombre de points observés dans le voisinage du point d’estimation. 
+Cette « boîte » est définie par deux paramètres :
+              Sa portée (notée h sur le schéma)
+              Sa forme (notée K sur le schéma). Le fait qu’il s’agisse ici d’une forme en « cloche » signifie que l’on souhaite donner un poids plus important aux observations proches du point d’estimation et un poids négligeable aux observations les plus éloignées. Il s’agit le plus souvent (comme ici) d’une fonction décroissante de la distance de type gaussien.
+(3) Par itération, on fait glisser cette boîte d’un carreau à l’autre de la grille d’estimation = on crée autrement dit une fenêtre mobile qui balaie la zone étudiée pour attribuer à chaque carreau une valeur de densité d’un phénomène dans un voisinage de portée h.
+- Parfois, une dernière étape, non représentée sur le schéma, consiste à appliquer une fonction de lissage graphique à la grille, pour gommer les discontinuités liées aux limites des carreaux.
+::: 
+::: {second-column}
+![](img/KernelsSchema.png)
+::: 
+:::
+
+Le choix de la fonction de lissage dépend donc de deux paramètres principaux :
+
+- La **portée (le rayon) de la fenêtre de voisinage**, sur laquelle on peut jouer pour faire ressortir des structures d’organisation plus ou moins élémentaires ou détaillées.
+
+- La **forme de cette fenêtre**, déterminée par la fonction de pondération des observations autour du point d’estimation : aux deux extrêmes, la fonction uniforme (moyenne de toutes les observations du voisinage, sans pondération) est plus simple à comprendre mais introduit des discontinuités visuelles non négligeables, tandis que la fonction gaussienne est une de celles qui traduit le mieux les continuités de tendances dans l’espace. 
+
+<br>
+
+**Dans R, avec Spatstats** :
+
+Application aux **cafés du centre de Sousse**
+
+
+**Conversion** des données de points dans le **format ppp** adapté à spatstat
+```{r}
+# Récupération des coordonnées X,Y pour les cafes de Sousse
+# Puis création d'un objet points en format adapté à spatstat (.ppp)
+pts <- st_drop_geometry(cafes[,c("X","Y")])
+bbox <- st_bbox(secteurs)
+bbox
+p <- ppp(pts[,1], pts[,2], window=owin(c(bbox$xmin,bbox$xmax), c(bbox$ymin,bbox$ymax)))
+```
+
+**Carte brute de densité par noyaux**
+Cette carte est réalisée à partir de la fonction *density.ppp* de *spatstat*.
+```{r}
+# sigma = portée de la fenêtre (ici, 500 mètres)
+# kernel = fonction de décroissance de la distance. Par défaut, fonction gaussienne. 
+# Autres fonctions courantes : "epanechnikov", "quartic", "disc".
+
+ds <- density.ppp(p, kernel="epanechnikov",sigma = 500)
+rasdens <- rast(ds)
+
+# Et pour convertir la légende en densité au km² ...
+# (par défaut : dans les unités de la projection, en m²)
+rasdens <- rast(ds) * 1000 * 1000
+rasdens <- rasdens
+plot(rasdens)
+```
+
+
+**Carte "habillée" de la densité par noyaux**
+```{r, fig.height=6, fig.width=6}
+
+par(mar = c(0.5,0.5,1.2,0.5))
+
+bks <- getBreaks(values(rasdens), nclass = 12, method = "equal")
+cols <- colorRampPalette((c("white","tomato","darkorchid4")))(length(bks)-1)
+plot(rasdens, breaks= bks, col=cols,legend=F)
+
+legendChoro(pos = "topleft",cex = 0.7, title.cex = 0.7,
+            title.txt = "Densité de cafés\nKDE (epanechnikov\n,sigma=500m\n(cafés par km2))",
+            breaks = bks-1, nodata = FALSE,values.rnd = 1, col = cols)
+
+plot(st_geometry(secteurs), border = "grey50",col=NA,lwd = 0.1,add=T)
+plot(st_geometry(cafes), col = "blue", pch = 20, cex = 0.5, add=T)
+plot(st_geometry(mer), col="lightblue1",border = "grey60",add=T)
+
+layoutLayer(title = "Densité de cafés à Sousse", scale = 1,
+            tabtitle = TRUE, frame = FALSE,
+            sources = "OpenStreetMap 2024, INS")
+
+```
+
+::: {.callout-caution icon="false"}
+## A vous de jouer
+
+Testez différentes valeurs de portée du lissage à l'aide de l'argument **sigma =** de la fonction **density.ppp** (par exemple pour un voisinage de 300m ou 500m) et de différentes fonctions de décroissance de la distance à l'aide de l'argument **kernel =** de la fonction **density.ppp**.   
+- Quelles logiques de concentration des cafés semblent émerger sur ces cartes ?
+:::
+
+
+#### **Pour aller plus loin...**
+
+• Sur les noyaux de densité (KDE), voir par exemple :\
+
+-   Un site de ressources sur *spatstat*, par les créateurs du package, A. Baddeley, R. Turner et E. Rubak, [ici](https://spatstat.org/resources.html){target="_blank"}.
+
+-   Plusieurs exemples de cartes lissées par noyaux de densité sous `R`, appliquées aux bars et différents types de restaurants parisiens [Giraud, 2017](https://rcarto.github.io/caRtosm/index.html){target="_blank"}, ou encore aux hôpitaux pédiatriques de Singapour [Tin Seong, 2019](https://rpubs.com/tskam/IS415-Hands-on_Ex04){target="_blank"}
+
+-   Pour aller beaucoup plus loin : un chapitre du manuel de l'INSEE d'analyse spatiale avec R sur les cartes de densité par noyaux [(chapitre 8)](https://www.insee.fr/fr/statistiques/fichier/3635442/imet131-l-chapitre-8.pdf){target="_blank"}.
+
+• Sur les lissages par potentiel\
+
+- voir le site web du package [**`potential`**](https://riatelab.github.io/potential/articles/potential.html){target="_blank"} réalisé par Timothée Giraud : exemples sur le lissage par potentiels des populations en Europe, le lissage par potentiels du revenu par habitant en Italie.
+
+
+------------------------------------------------------------------------
+
+::: {.callout-note title="A propos de ce document"}
+Ce support a été créé pour la semaine de formation franco-tunisienne
+**GEO UNIV'R Tunisie 2024 - "Enseigner la statistique, la cartographie
+et l'analyse spatiale avec R** qui se tient à Sousse en mai 2024.
+:::
+
+#### Références {.unnumbered}
+
+::: {#refs}
+:::
+
+------------------------------------------------------------------------
+
+```{r sessionInfo}
+sessionInfo()
+```
+:::

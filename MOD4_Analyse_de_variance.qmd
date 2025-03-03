@@ -1,0 +1,598 @@
+---
+title: "[MOD4] : Analyse de variance simple et multiple"
+subtitle: "GEO UNIV'R Tunisie 2024"
+date: "2024-05-13"
+date-format: iso
+author: "Claude Grasland, Malika Madelin"
+lang: fr
+format:
+  html:
+    embed-resources: true
+    smooth-scroll: true
+    fontsize: 0.9em
+    toc: true
+    toc-depth: 3
+    toc-title: "."
+    bibliography: [bib.bib]
+    crossrefs-hover: false
+    css: custom.css
+    theme: [yeti, style.scss]
+execute:
+  warning: false
+  message: false 
+knitr:
+  opts_chunk:
+    out.width: "100%"
+editor_options: 
+  chunk_output_type: console
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning = FALSE)
+```
+
+```{r packages}
+library(sf, quietly= TRUE,warn.conflicts = F)
+library(dplyr, quietly = TRUE,warn.conflicts = F)
+library(knitr)
+library(mapsf)
+library(car,warn.conflicts = F,quietly=T)
+```
+
+L'objectif de cet exercice est de fournir une introduction aux modèles
+d'**analyse de variance simple ou multiples** dans lesquels une variable
+Y quantitative est fonction d'une ou plusieurs variables qualitatives
+X1, X2, X3...
+
+# 1. Données
+
+Nous allons importer un fichier de données portant sur les revenus de
+17 000 ménages tunisiens en 2021. Il est tiré de l'Enquête Nationale sur
+le Budget et la Consommation des Ménages réalisée par l'INS et publiée
+sur son site.
+
+::: {.callout-note collapse="true" title="Enquête Nationale sur le Budget et la Consommation des Ménages de Tunisie en 2021"}
+![image](img/ins_conso.png)
+
+On peut télécharger librement les données en [cliquant
+ici](https://www.ins.tn/enquetes/enquete-nationale-sur-le-budget-la-consommation-et-le-niveau-de-vie-des-menages-2021){target="_blank"}.
+Les fichiers obtenus sont au format stata avec l'extension .dta. Il est
+toutefois possible de les importer dans R avec le package `haven` puis
+de recoder les variables sous la forme de factors à l'aide du package
+`labelled`.
+:::
+
+## Importation des données
+
+On commence par charger les données contenues dans le fichier
+*enq_INS_conso_menages_2021.RDS* à l'aide de la fonction `readRDS()` qui
+permet de lire les fichiers sauvegardés dans le format interne de R et
+on affiche les 6 premières lignes :
+
+```{r}
+# Importe les données au format interne de R
+base<-readRDS("data/ENQ-TUN-2021/enq_INS_conso_menages_2021.RDS") 
+
+head(base)
+```
+
+## Liste des variables
+
+On a légèrement changé le fichier initial de l'INS en simplifiant les
+noms des variables et en fusionnant certaines modalités. Nous avons
+décidé de retirer les données incomplètes pour lesquels il manque des
+informations telles que le sexe, l'âge ou la profession du chef de
+ménage. Pour cette raison les résultats obtenus seront très légèrement
+différents de ceux présentés sur le site de l'INS.
+
+Les variables proposées sont les suivantes :
+
+-   id : identifiant du ménage de 1 à 17114
+
+-   reg : région de résidence (GT = Grand Tunis, NE = Nord-Est, ...)
+
+-   mil : milieu de résidence (urbain ou rural)
+
+-   sex : sexe du chef de ménage
+
+-   age : âge du chef de ménage
+
+-   mat : situation matrimoniale du chef de ménage (célibataire, marié,
+    veuf, divorcé)
+
+-   ins : niveau d'instruction du chef de ménage (aucune, primaire,
+    secondaire, supérieur)
+
+-   csp : catégorie socio-professionnelle du chef de ménage (simplifiée
+    par rapport au fichier de l'INS)
+
+-   nbp : nombre de personnes composant le ménage
+
+-   pvr : situation de pauvreté selon les critères de l'INS,
+    c'est-à-dire en tenant compte par exemple du coût de la vie dans la
+    région de résidence (Oui/Non)
+
+-   rev : revenu annuel moyen divisé par le nombre de personnes du
+    ménage (en DT / an)
+
+## Selection du tableau à analyser
+
+On suppose qu'on ne s'intéresse qu'à quelques variables
+
+```{r}
+don<-base[,c("reg","mil","sex", "ins", "age","rev")]
+head(don)
+```
+
+## Résumé rapide
+
+On effectue un résumé rapide du tableau à l'aide de la fonction
+`summary()`:
+
+```{r}
+summary(don)
+```
+
+::: {.callout-note collapse="true" title="Absence de pondération"}
+Pour cette enquete l'INS a utilisé la méthode de tirage au sort par
+région, milieu, sexe et âge qui rend l'échantillon représentatif de la
+population tunisienne sans qu'il soit nécessaire d'introduire une
+procédure de redressement. Le fait que nous ayons retiré les quelques
+individus pour lesquels certaines valeurs étaient manquantes ne change
+pas fondamentalement les résultats.
+:::
+
+# 2. Variable dépendante (Y)
+
+On se propose d'expliquer la variable *revenu annuel moyen par membre du
+ménage* que l'on appellera par la suite de façon abrégée *revenu annuel
+moyen*. On va commencer par analyser rapidement les caractéristiques
+dela distribution statistique de cette variable.
+
+## Paramètres principaux
+
+Un résumé rapide est obtenu à l'aide de la fonction `summary()` que l'on
+complète par le calcul de l'écart-type et du coefficient de variation.
+
+```{r}
+res<-summary(don$rev)
+ect<-sd(don$rev)
+cv <- 100*sd(don$rev)/mean(don$rev)
+res<-c(res,ect,cv)
+names(res)<-c("Minimum", "Q1","Médiane","Moyenne","Q3","Maximum", "Ecart-type", "CV (%)")
+kable(res, digits=1, caption = "Paramètres principaux des revenus en Tunisie")
+```
+
+::: {.callout-note collapse="true" title="Commentaire"}
+-   Nous obtenons un **revenu annuel moyen** de 5519 DT ce qui est un
+    peu plus que la valeur publiée sur le site de l'INS qui est de 5426
+    DT. La différence s'explique, comme nous l'avons expliqué
+    précédemment, par le fait que nous avons retiré quelques individus
+    ayant des valeurs manquantes.
+
+-   l'analyse des **quantiles** de la distribution indique que le
+    **revenu médian** est de 4429 DT et que 50% des ménages ont des
+    revenus compris entre Q1 = 3035 DT et Q3 = 6495 DT. Il existe
+    toutefois des valeurs extrêmes puisque le minimum est de 185 DT et
+    le maximum de 526271 DT.
+
+-   La **dispersion** de la distribution des revenus est donc très forte
+    comme en témoigne l'écart type de 7036 DT et surtout le coefficient
+    de variation qui montre que l'écart-type est égal à 127.5% de la
+    moyenne.
+:::
+
+## Forme de la distribution
+
+On devine à l'aide des résultats précédents que la distribution comporte
+des valeurs exceptionnelles et doit être fortement dissymétriques à
+gauche.
+
+```{r}
+par(mfrow=c(2,1))
+
+hist(don$rev, 
+     main="Histogramme",
+     col="lightyellow",
+     xlab="Revenu par habitant·e (log)")
+
+boxplot(don$rev, 
+        main = "Boîte à moustache",
+        col="lightyellow",
+        xlab ="Revenu par habitant·e (log)", 
+        horizontal=T)
+```
+
+::: {.callout-note collapse="true" title="Commentaire"}
+La distribution est effectivemet fortement dissymétrique à gauche en
+raison de la présence de valeurs exceptionnelles correspondant aux
+individus les plus riches. L'histogramme est de ce fait totalement
+illisible.
+:::
+
+## Transformation logarithmique
+
+On décide de transformer la variable en son logarithme ce qui est une
+pratique courante lorsqu'on analyse les revenus des ménages. On espère
+ainsi que la nouvelle distribution deviendra plus symétrique voire
+gaussienne ce qui signifierait qu'elle est **log-normale**.
+
+```{r}
+don$logrev<-log(don$rev)
+
+par(mfrow=c(2,1))
+hist(don$logrev, 
+     main="Histogramme",
+     col="lightyellow",
+     xlab="Revenu par habitant·e (log)")
+
+boxplot(don$logrev, 
+        main = "Boîte à moustache",
+        col="lightyellow",
+        xlab ="Revenu par habitant·e (log)", 
+        horizontal=T)
+```
+
+::: {.callout-note collapse="true" title="Commentaire"}
+La distribution comporte encore des valeurs exceptionnelles à droite
+comme à gauche mais elle est désormais symétrique. Elle n'est donc pas
+véritablement log-normale car elle présente une sur-concentration des
+valeurs au centre. Nous n'allons cependant pas la modifier davantage et
+utiliser désormais le logarithme du revenu dans la suite des analyses.
+:::
+
+# 3. Analyse de variance simple
+
+On va tester tour à tour chacune des différentes variables qualitatives
+sélectionnées.
+
+## Modèle 1 : Le revenu moyen annuel (log) est-il différent en milieu urbain et en milieu rural ?
+
+Dans le cas d'une variable qualitative à deux modalités, nous pourrions
+utiliser un test d'égalité des moyennes comme cela a été vu dans le
+premier cours de statistique bivariée. Mais nous préférons utiliser ici
+l'**analyse de variance** afin de pouvoir ensuite appliquer la même
+méthode avec les autres variables qualitatives ayant plus de deux
+modalités.
+
+### Paramètres principaux
+
+On commence par calculer les paramètres principaux des variables logrev
+(Y) en fonction de la variable explicative (X).
+
+```{r}
+Y <- don$logrev
+X <- don$mil
+
+# création de 2 objets avec les libellés, pour les mobiliser plus facilement
+nameY <- "log. du revenu moyen (en DT/hab.)"
+nameX <- "Milieu (Urbain/Rural)"
+
+# calcul de la moyenne et de l'écart-type de Y selon les 2 modalités de X 
+moy<-tapply(Y,X,mean)
+ect<- tapply(Y,X,sd)
+cv <- 100*ect/moy
+tabres<-rbind(moy,ect,cv)
+kable(tabres, caption = "Paramètres princiapux du revenu moyen annuel ")
+
+```
+
+::: {.callout-note collapse="true" title="Commentaire"}
+Les deux moyennes sont visiblement différentes et les revenus (en log)
+plus élevés en milieu urbain (8.57) qu'en milieu rural (8.13). Mais
+chaque milieu présente un fort écart-type (0.57 et 0.56) de sorte qu'il
+est difficile d'affirmer avec certitude que la différence entre les deux
+moyennes est significative si on ne fait pas un test statistique.
+:::
+
+### Visualisation graphique
+
+Pour mieux apprécier la différence entre les deux distributions on
+réalise une boxplot permettant de comparer non seulement les moyennes
+mais aussi les quartiles et ainsi de mieux apprécier visuellement la
+différence entre les deux distributions.
+
+```{r}
+boxplot(Y~X,
+    col="lightyellow",
+     cex.axis=0.6, 
+     xlab=nameX, 
+     ylab= nameY,
+    horizontal=T)
+
+```
+
+::: {.callout-note collapse="true" title="Commentaire"}
+Il y a effectivement un net décalage entre le centre des deux
+distributions où se trouvent la médiane et les quartiles Q1 et Q3.
+:::
+
+### Modélisation linéaire
+
+On réalise le modèle d'analyse de variance en utilisant le modèle
+linéaire général, c'est-à-dire la fonction `lm()` qu'on a utilisé
+précédemment pour mettre en relation deux variables quantitatives à
+l'aide de modèles de régression. Puis on résume les parts de variance
+intra-groupe et inter-groupe à l'aide de la fonction `anova()`.
+
+```{r}
+mod<-lm(Y~X)
+summary(mod)
+anova(mod)
+```
+
+### Interprétation des résultats
+
+Comme nous avons utilisé le logarithme du revenu, il faut utiliser une
+transformation exponentielle pour analyser correctement les
+coefficients. En effet on a :
+
+-   $log(rev) = a + b\times mil$
+
+-   $rev = exp(a + b\times mil)$
+
+-   $rev = exp(a) \times exp(b)^{mil}$
+
+```{r}
+exp(mod$coefficients)
+```
+
+Dans cet exemple, les coefficients nous indiquent donc que le revenu
+moyen en milieu urbain est de `r round(exp(mod$coefficients)[1], 0)`
+DT/hab. (« *(Intercept)* »), tandis qu'il n'est que de
+`r round(exp(mod$coefficents[1]+mod$coefficients[2]),0)` en milieu
+rural. Le coefficient du modèle indique que le revenu ruar est égal à
+`r round(100*exp(mod$coefficients)[2], 0)`% de la valeur observée en
+milieu rural.
+
+::: {.callout-warning collapse="true" title="Moyenne arithmétique et moyenne géométrique"}
+Vous avez sans doute remarqué que les valeurs moyennes de revenu en
+milieu urbain et rural que nous obtenons ici ne correspondant pas à
+celles fournies par l'INS. La différence s'explique par le fait que nous
+avons travaillé sur le logarithme des revenus et non pas sur les
+revenus. En procédant ainsi nous avons en fait comparé la différence
+entre les moyennes géométriques des individus situés en milieu urbain et
+rural et non pas la différence entre les moyennes arithmétiques.
+
+$Moy_{arithmétique} = \sum_{i=1}^{n}{X_i} / n$
+$Moy_{geométrique} = exp(\sum_{i=1}^{n}log({X_i}) / n)$
+:::
+
+## Modèle 2 : Le revenu moyen annuel est-il lié au genre du chef de ménage ?
+
+On rassemble nos quatre petits blocs de programme en un seul et on
+change juste le choix de la variable explicative. Désormais c'est à vous
+de faire les commentaires !
+
+```{r}
+# Choix des variables
+Y<-don$logrev 
+X<- don$sex
+nameY <-"log. du Revenu (en DT/hab.)"
+nameX <- "Genre du chef de ménage"
+
+# Paramètres principaux
+tapply(Y,X,mean)
+tapply(Y,X,sd)
+
+# Visualisation
+boxplot(Y~X,
+    col="lightyellow",
+     cex.axis=0.6, 
+     xlab=nameX, 
+     ylab= nameY,
+    horizontal=T)
+
+# Modélisation
+mod<-lm(Y~X)
+summary(mod)
+anova(mod)
+
+# Paramètres
+exp(mod$coefficients)
+```
+
+::: {.callout-note collapse="true" title="Commentaire"}
+Que pouvez-vous dire des résultats ?
+:::
+
+## Modèle 3 : Le revenu des habitant·es est-il lié au niveau d'instruction du chef de ménage ?
+
+Même programme mais avec une variable qualitative ayant quatre niveaux.
+
+```{r}
+# Choix des variables
+Y<-don$logrev
+X<- don$ins
+nameY <-"log. du Revenu (en DT/hab.)"
+nameX <- "Instruction du chef de ménage"
+
+# Paramètres principaux
+tapply(Y,X,mean)
+tapply(Y,X,sd)
+
+# Visualisation
+boxplot(Y~X,
+    col="lightyellow",
+     cex.axis=0.6, 
+     xlab=nameX, 
+     ylab= nameY,
+    horizontal=T)
+
+# Modélisation
+mod<-lm(Y~X)
+summary(mod)
+anova(mod)
+
+# Paramètres
+exp(mod$coefficients)
+```
+
+::: {.callout-note collapse="true" title="Commentaire"}
+Que pouvez-vous dire des résultats ?
+:::
+
+## Modèle 4 : Le revenu des habitant·es est-il lié à la région où ils se trouvent ?
+
+Même programme mais avec une variable qualitative ayant cinq niveaux.
+
+```{r}
+# Choix des variables
+Y<-don$logrev
+X<- don$reg
+nameY <-"log. du Revenu (en DT/hab.)"
+nameX <- "Région"
+
+# Paramètres principaux
+tapply(Y,X,mean)
+tapply(Y,X,sd)
+
+# Visualisation
+boxplot(Y~X,
+    col="lightyellow",
+     cex.axis=0.6, 
+     xlab=nameX, 
+     ylab= nameY,
+    horizontal=T)
+
+# Modélisation
+mod<-lm(Y~X)
+summary(mod)
+anova(mod)
+
+# Paramètres
+exp(mod$coefficients)
+```
+
+::: {.callout-note collapse="true" title="Commentaire"}
+Que pouvez-vous dire des résultats ?
+:::
+
+## Modèle 5 : Le revenu des habitant·es est-il lié à l'âge du chef de ménage ?
+
+Initialement la variable *âge* est quantitative. On pourrait envisager
+de construire une régression mais rien de prouve que le revenu augmente
+avec l'âge.
+
+```{r}
+plot(don$age,don$logrev, pch=20, cex=0.2)
+```
+
+On va donc transformer la variable `age` en classes qui doivent être
+bien réfléchies car elles vont conditionner les résultats. On peut
+utiliser les quantiles ou bien choisir ses propres classes en fonction
+de la connaissance que l'on a du phénomène. Par exemple ici on va
+retenir , 4 classes échelonnées en intervalles de 15 ans
+
+```{r}
+classes<-c(min(don$age),35,50,65, max(don$age))
+don$age4 <- cut(don$age,classes)
+table(don$age4)
+```
+
+On peut alors appliquer le même programme que précédemment :
+
+```{r}
+# Choix des variables
+Y<-don$logrev
+X<- don$age4
+nameY <-"log. du Revenu (en DT/hab.)"
+nameX <- "Age du chef de ménage"
+
+# Paramètres principaux
+tapply(Y,X,mean)
+tapply(Y,X,sd)
+
+# Visualisation
+boxplot(Y~X,
+    col="lightyellow",
+     cex.axis=0.6, 
+     xlab=nameX, 
+     ylab= nameY,
+    horizontal=T)
+
+# Modélisation
+mod<-lm(Y~X)
+summary(mod)
+anova(mod)
+
+# Paramètres
+exp(mod$coefficients)
+```
+
+::: {.callout-note collapse="true" title="Commentaire"}
+Que pouvez-vous dire des résultats ?
+:::
+
+# 4. Analyse de variance multiple
+
+## Modèle sans interaction
+
+Si on suppose que toutes les variables explicatives sont indépendantes,
+on peut construire un modèle décrivant la prévision du revenu en
+fonction de l'effet des modalités de chacune des variables.
+
+```{r}
+
+mod<-lm(formula = logrev~sex+age4+ins+mil+reg, data=don)
+summary(mod)
+Anova(mod,type = "III")
+
+```
+
+Comme on peut le voir, toutes les variables ont des effets significatifs
+toutes choses égales quant à celui des autres. Mais Le fait de procéder
+à une estimation simultanée entraîne des modifications des coefficients
+par rapport à ceux que l'on avait obtenu à l'aide des modèles simples.
+Ce modèle final résume 31.6% de la variance du logarithme des revenus
+((« *R-squared* »), ce qui est un bon résultat. Mais il demeure
+évidemment plus de deux-tiers de variance résiduelle imputable à des
+facteurs non pris en compte.
+
+## Interprétation des résultats
+
+Nous construisons un tableau final dans lequel on a indiqué pour chaque
+modalité le coefficient correspondant et sa transformation
+exponentielle.
+
+```{r}
+x <- mod$coefficients
+tabres <- data.frame(parametre=x, exp_parametre=exp(x))
+kable(tabres, digits=3)
+```
+
+-   la ligne « *(Intercept)* » correspond à la situation de référence
+    par laquelle on va calculer l'effet des différentes modalités. Il
+    s'agit ici d'un homme (`*sex*`), de 19-34 ans (`*age*`), sans
+    instruction (`*ins*`) et résidant en milieu urbain (`*mil*`) dans le
+    Grand Tunis (`*reg*`). Son revenu par personne sera selon le modèle
+    de 4070 DT/hab.
+
+-   **les femmes chefs de ménage ont en moyenne un revenu supérieur de
+    27%** par rapport aux autres chefs de ménage, toutes choses égales
+    quant à leurs caractéristiques.
+
+-   **le revenu varie de façon non linéaire avec l'âge**. Les chefs de
+    ménage de 35-50 ans ont en effet un niveau de revenu inférieur de
+    -7% à celui des 19-34 ans. Par contre il est supérieur de +22% pour
+    les 50-64 ans et de +43% pour les 65 ans et plus.
+
+-   **le revenu augmente régulièrement avec le niveau d'instruction des
+    chefs de ménage**. Par rapport à un non diplômé, le revenu sera
+    augmenté de +13.8% pour un niveau primaire, +39% pour un niveau
+    secondaire et +91% pour un niveau supérieur.
+
+-   **les ménages ruraux ont des revenus plus faibles que les ménages
+    urbains**. La différence est environ de -20% en moyenne.
+
+-   **le revenu varie fortement selon les régions**. Ce résultat n'est
+    évidemment pas une surprise, mais les coefficients d'inégalités sont
+    ici calculés toutes choses égales quant aux autres facteurs (milieu,
+    âge, sexe, instruction) ce qui rend l'analyse plus précise. Par
+    rapport à la région du Grand Tunis, les autres régions se classent
+    par ordre décroissant ainsi : Centre Est (-11.5%), Nord Est
+    (-24.3%), Sud-Ouest (-24.6%), Nord Ouest (-25.7%), Sud Est (-27.6%)
+    et surtout Centre-Ouest (-36.2%).

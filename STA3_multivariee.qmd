@@ -1,0 +1,684 @@
+---
+title: "[STA3] : Introduction à la statistique multivariée"
+subtitle: "GEO UNIV'R Tunisie 2024"
+author: "Sophie Baudet-Michel, Claude Grasland"
+date: "2024-05-13"
+date-format: iso
+lang: fr
+format:
+  html:
+    embed-resources: true
+    smooth-scroll: true
+    fontsize: 0.9em
+    toc: true
+    toc-depth: 3
+    toc-title: "."
+    bibliography: [bib.bib]
+    crossrefs-hover: false
+    css: custom.css
+    theme: [yeti, style.scss]
+execute:
+  warning: false
+  message: false 
+knitr:
+  opts_chunk:
+    out.width: "100%"
+editor_options: 
+  chunk_output_type: console
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+
+
+```{r}
+## Packages utilitaire
+library(knitr)
+library(dplyr,quiet=T)
+
+### Package d'analyse des données
+library(FactoMineR)
+
+### Packages de cartographie
+library(sf, quietly-TRUE)
+library(mapsf)
+library(RColorBrewer)
+
+
+## Options du document
+options(max.print="80")
+opts_chunk$set(echo=TRUE,
+               cache=FALSE,
+               prompt=FALSE,
+               tidy=FALSE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE,
+               options(scipen=999))
+opts_knit$set(width=75)
+```
+
+
+
+On reprend toutes les étapes précédentes en un seul programme.
+
+
+## (A) PREPARATION DES DONNEES
+
+- **Note** : on peut passer cette partie et démarrer si on le souhaite directement à la partie suivante dès lors que les fichiers ont été créés dans le dossier EXPLO.
+
+
+### Importe les données statistiques
+
+```{r, eval=FALSE}
+# Importation du fichier .csv
+don <- read.table("data/RP_Tunisie/data/don_gou.csv", 
+                  header = TRUE,   # Il y a un en-tête
+                  sep = ";",       # le séparateur est ;
+                  encoding = "UTF-8"  # Encodage pour français et arabe
+                  )
+
+
+# Création ou recodage des variables
+code<-don$gou_code
+nom<-don$gou_nom
+popto <- don$popto_2004
+menag <- don$menag_2004
+tailm <- don$popto_2004/don$menag_2004
+densi <- don$popto_2004/don$surfa_2010
+#urban <- 100*don$popco_2004/don$popto_2004
+mobil <- 100*(don$immig_2004+don$emigr_2004)/don$popto_2004
+acmig <- 100*(don$immig_2004-don$emigr_2004)/don$popto_2004
+ordin <- 100*don$ordin_2004/don$menag_2004
+porta <- 100*don$porta_2004/don$menag_2004
+
+# Affichage
+tab<-data.frame(code,nom, popto,menag, tailm, densi,mobil, acmig, ordin, porta)
+kable(tab, 
+      digits = c(0,0,0,0,2,1,1,1,1,1), # decimales par colonnes
+      caption = "Tableau de données 2004"   # Titre du tableau
+      )
+
+# Sauvegarde aux formats .RDS et .csv
+saveRDS(tab, "data/EXPLO/don2004.RDS") # sauvegarde au format interne de R
+
+write.table(tab, "data/EXPLO/don2004.csv",
+            sep=";", 
+            row.names=F,
+            fileEncoding = "UTF-8")
+
+# Importation du shapefile des gouvernorats à l'aide de sf
+map<-sf::st_read("data/RP_Tunisie/geom/map_gou.shp")
+
+
+# Jointure des données statistiques et géométriques
+map<- merge(map, tab, by.x="gou_code",by.y="code")
+
+# Sauvegarde aux formats .RDS .shp et  .geojson
+
+saveRDS(map, "data/EXPLO/map2004.RDS") ## Format interne de R
+
+sf::st_write(map, "data/EXPLO/map2004.geojson",delete_dsn = T)  ## Format geojson
+
+sf::st_write(map, "data/EXPLO/map2004.shp",delete_dsn = T)
+
+```
+
+
+
+## (2) EXPLORATION UNIVARIEE
+
+Avant de procéder à une ACP, on effectue un certain nombre d'analyse sur les variables qui seront utilisées. On prend ici l'exemple des données de 2004.
+
+```{r}
+don<-readRDS("data/EXPLO/don2004.RDS") # recharge le fichier
+head(don,3)  # Affiche les 3 premières lignes
+tail(don,3)  # Affiche les 3 dernières lignes
+```
+
+
+
+### Exploration statistique
+
+On regarde pour chaque variable retenue la forme de sa distribution afin de procéder éventuellement à des transformations si celle-ci est trop éloignée d'une forme gaussienne.
+
+#### Taille moyenne des ménages (*tailm*)
+
+```{r}
+
+X<-don$tailm
+
+# résumé statistique
+summary(X)
+
+# graphique en R-base
+hist(X)
+boxplot(X, horizontal=T)
+
+
+```
+
+
+#### Densité de population (*densi*)
+
+```{r}
+X<-don$densi
+summary(X)
+hist(X)
+boxplot(X, horizontal=T)
+```
+
+On essaye une transformation logarithmique
+
+```{r}
+X<-log(don$densi)
+summary(X)
+hist(X)
+boxplot(X, horizontal=T)
+```
+
+C'est mieux !
+
+#### Taux de mobilité (mobil)
+
+```{r}
+X<-don$mobil
+summary(X)
+hist(X)
+boxplot(X, horizontal=T)
+```
+
+
+#### Taux d'accroissement migratoire (acmig)
+
+```{r}
+X<-don$acmig
+summary(X)
+hist(X)
+boxplot(X, horizontal=T)
+```
+
+
+#### Taux d'équipement des ménages en téléphones mobiles (*mobil*)
+
+```{r}
+X<-don$mobil
+summary(X)
+hist(X)
+boxplot(X, horizontal=T)
+```
+
+#### Taux d'équipement des ménages en ordinateur (*ordin*)
+
+```{r}
+X<-don$ordin
+summary(X)
+hist(X)
+boxplot(X, horizontal=T)
+```
+
+### Exploration cartographique
+
+On procède à une cartographie rapide des six variables sous forme de planches utilisant la même méthode de discrétisation (quartiles)
+
+```{r}
+# Charge le fichier stat + geom
+map<-readRDS("data/EXPLO/map2004.RDS")
+```
+
+
+#### Données structurelles
+
+On compare ici la taille moyenne des ménages et la densité de population
+
+
+```{r}
+# Définit un cadre avec deux cartes côte à côte
+par(mfrow=c(1,2)) # une ligne et deux colonnes
+
+# Carte n°1
+mf_map(x = map, 
+       type = "choro",
+       var="tailm",
+       breaks = "quantile",
+       nbreaks=4, 
+       leg_title = "quartiles")
+mf_layout(title = "Taille moyenne des ménages", 
+          credits = "Source : INS",
+          frame=T)
+
+# Carte n°2 
+mf_map(x = map, type = "choro",var="densi",
+       breaks = "quantile",nbreaks=4, leg_title = "quartiles")
+mf_layout(title = "Densité de population", 
+          credits = "Source : INS",
+          frame=T)
+
+
+```
+
+#### Données démographiques
+
+On compare ici le taux de mobilité et le taux d'accroissement migratoire
+
+
+```{r}
+
+
+# Définit un cadre avec deux cartes côte à côte
+par(mfrow=c(1,2))
+
+# Carte n°1
+mf_map(x = map,
+       type = "choro",
+       var="mobil",
+       breaks = "quantile",
+       nbreaks=4, 
+       leg_title = "quartiles")
+mf_layout(title = "Taux de mobilité", 
+          credits = "Source : INS",
+          frame=T)
+
+# Carte n°2 
+mf_map(x = map, 
+       type = "choro",
+       var="acmig",
+       breaks = "quantile",
+       nbreaks=4, 
+       leg_title = "quartiles")
+mf_layout(title = "Taux d'accroissement migratoire", 
+          credits = "Source : INS",
+          frame=T)
+
+
+```
+
+
+#### Données d'équipement 
+
+On compare ici le taux d'équipement des ménages en ordinateur et téléphones portables
+
+
+```{r}
+
+
+# Définit un cadre avec deux cartes côte à côte
+par(mfrow=c(1,2))
+
+# Carte n°1
+mf_map(x = map, type = "choro",var="porta",
+       breaks = "quantile",nbreaks=4, leg_title = "quartiles")
+mf_layout(title = "Equipement en téléphones portables", 
+          credits = "Source : INS",
+          frame=T)
+
+# Carte n°2 
+mf_map(x = map, type = "choro",var="ordin",
+       breaks = "quantile",nbreaks=4, leg_title = "quartiles")
+mf_layout(title = "Equipement en ordinateurs", 
+          credits = "Source : INS",
+          frame=T)
+
+
+```
+
+
+## (3) ANALYSE EN COMPOSANTES PRINCIPALES (ACP)
+
+Au vu de l'exploration statistique, on décide de transformer la densité de population en logarithme. Le reste des variables demeure inchangé. On choisit comme précédemment l'exemple de la situation en 2004.
+
+### Tableau brut
+
+On constitue un tableau ne gardant que les 6 variables utiles. On ajoute en nom de lignes le code des gouvernorats
+
+```{r}
+don<-readRDS("data/EXPLO/don2004.RDS")
+
+# transforme la densité
+don$logden<-log(don$densi) 
+
+# choisit les variables
+tab<-don[,c("tailm", "logden","mobil", "acmig", "ordin","porta")]   
+
+# Ajoute un identifiant en numéro de ligne
+row.names(tab) <- don$code
+
+# Affiche le tableau
+kable(tab, digits=2, caption = "Tableau brut")
+```
+
+### Standardisation
+
+L'ACP normée va travailler non pas sur le tableau brut mais sur le tableau standardisé afin que les variables soient comparables. Pour éliminer les effets de taille et d'unité de mesure. Chaque variable aura alors le même poids.
+
+```{r}
+# applique la standardiation à chaque variable (2)
+tabstd <- apply(tab,2, scale) 
+
+# Ajoute les identifiants des unités 
+row.names(tabstd)<-don$code
+
+#Affiche le tableau
+kable(tabstd, 
+      digits=1,
+      caption="Tableau standardisé")
+```
+
+### Matrice de corrélation
+
+On peut examiner la matrice de corrélation entre les variables :
+
+```{r}
+matcor<-cor(tab)
+kable(matcor,digits=2, caption = "Matrice des corrélations")
+```
+
+
+? ajouter un corrélogramme ? 
+
+### Paramètres principaux
+
+```{r}
+
+param <- apply(tab, 2, summary)
+variance<-apply(tab,2,var)
+ectype<-apply(tab,2,sd)
+tabres<-rbind(param, variance,ectype)
+tabres<-data.frame(tabres)
+row.names(tabres)<-c("Minimum","Q1","Mediane","Moyenne","Q3","Maximum","Variance","Ecart-Type")
+
+kable(tabres, 
+      digits=1,
+      caption = "Paramètres principaux",
+      )
+
+
+
+```
+
+### ACP 
+On lance la procédure d'Analyse en Composantes Principales sur le tableau des variables initiales tab
+Pour cela on utilise la library FactoMineR
+Vocabulaire : composante = axe = facteurs
+
+
+```{r}
+# Réalisation de l'ACP : la sortie est une liste
+acp <- PCA(tab, 
+           graph=FALSE)
+
+# Nom des éléments de la liste
+names(acp)
+```
+
+La procédure a créé un objet acp qui est une liste de tableaux
+
+
+L'objet *acp* contient de nombreux résultats que nous pouvons extraire, puis analyser. Les résultats qui décrivent :
+- les composantes de l'ACP : Eig : les valeurs propres
+- les positions des variables du tableau initial sur les composantes
+Var : les informations relatives aux variables
+- les positions des individus sur les composantes
+Ind : les informations relatives aux individus
+
+
+### Analyse des valeurs propres
+
+On commence par récupérer les résultats sur les valeurs propres des composantes *eig*
+
+
+```{r}
+# Extrait les valeurs propres (eig = eigenvalue)
+Valprop<-acp$eig
+
+kable(Valprop, 
+      digits=2,
+      caption = "Les valeurs propres des composantes ",
+      col.names = c ("Valeurpropre", "PCVariance", "CumVariance"))
+```
+
+
+On représente graphiquement les valeurs propres 
+
+Syntaxe
+las = 2 #pour que les noms des barres soient à la verticale
+names.arg = VALPROP$Comp, #pour nommer chaque barre du graphique avec les noms d'axes
+
+```{r}
+VALPROP <- as.data.frame(Valprop)
+VALPROP$Comp <- c("F1", "F2", "F3", "F4", "F5", "F6")
+VALPROP <- VALPROP %>% rename(ValeurPropre='eigenvalue', 
+                    PCVariance='percentage of variance',
+                    CumVariance='cumulative percentage of variance')
+barplot(VALPROP$PCVariance,  
+        ylim = c(0, 80), col= "skyblue" , 
+        names.arg = VALPROP$Comp,
+      main = "Le % de variance des composantes",
+     xlab = "les composantes",
+     ylab = "le % de variance",
+     las = 2)
+```
+
+
+### Analyse des variables / composantes
+
+
+##### Qualités de représentation 
+
+- Extraction des qualités de représentations des variables sur les composantes (contenues dans *acp*)
+- Récupération des qualités de représentations des variables sur les composantes dans un dataframe
+*Var$cos2*
+- Nous n'analyserons que les 2 1ères composantes
+
+```{r}
+qualvar<-acp$var$cos2
+QUALVAR <- as.data.frame(qualvar)
+QUALVAR <- QUALVAR %>% select (Dim.1:Dim.2)
+QUALVAR <- QUALVAR %>% rename(QualF1='Dim.1', QualF2='Dim.2')
+kable(QUALVAR, 
+      digits=2,
+      caption = "Qualités de représentations des variables sur les composantes")
+```
+
+#### Contributions 
+
+*Var$contrib*
+```{r}
+ctrvar<-acp$var$contrib
+CTRVAR <- as.data.frame(ctrvar)
+CTRVAR <- CTRVAR %>% select (Dim.1:Dim.2)
+CTRVAR <- CTRVAR %>% rename(CtrF1='Dim.1', CtrF2='Dim.2')
+kable(CTRVAR, 
+      digits=2,
+      caption = "Contributions des variables aux composantes")
+```
+
+
+#### Corrélations
+
+```{r}
+corvar<-acp$var$cor
+CORVAR <- as.data.frame(corvar)
+CORVAR <- CORVAR %>% select(Dim.1:Dim.2)
+CORVAR <- CORVAR %>% rename(CorF1='Dim.1', CorF2='Dim.2')
+kable(CORVAR, 
+      digits=2,
+      caption = "Corrélations des variables avec les composantes")
+```
+
+#### Tableau de synthèse
+
+Réunion des descriptions des variables (QUAL, COR, CTR) sur les composantes dans un seul tableau
+```{r}
+ACPComp <- cbind.data.frame(CORVAR, CTRVAR,QUALVAR)
+kable(ACPComp, 
+      digits=2,
+      caption = "Descriptions des composantes par les variables")
+```
+
+
+#### Graphique n°1 : corrélations des variables avec les composantes
+
+Représentation graphique des positions des variables sur le 1er plan factoriels : 1-2 soit 86% de la variance du tableau de données 
+
+```{r}
+plot.PCA(acp,choix = "var",axes = c(1,2))
+```
+
+### Analyse des individus / composantes
+
+On fait la même chose pour les individus : on récupère les résultats pour les coordonnées et contributions des individus sur les composantes
+*ind$coord*
+*ind$contrib*
+On pourrait aussi récupérer les qualités de représentations (cos2)
+On ne travaille que sur les 2 premiers axes
+
+#### Tableau de synthèse
+
+```{r}
+cooind<-data.frame(acp$ind$coord)
+COOIND <- cooind %>% select(Dim.1:Dim.2)
+COOIND <- COOIND %>% rename(CorIndF1='Dim.1', CorIndF2='Dim.2')
+
+ctrind<-data.frame(acp$ind$contrib)
+CTRIND <- ctrind %>% select(Dim.1:Dim.2)
+CTRIND <- CTRIND %>% rename(CtrIndF1='Dim.1', CtrIndF2='Dim.2')
+
+ACPIndComp <- cbind.data.frame(COOIND, CTRIND)
+kable(ACPIndComp, 
+      digits=2,
+      caption = "Descriptions des composantes par les variables")
+
+```
+
+
+#### Graphique des coordonnées des individus sur les composantes
+
+```{r}
+plot.PCA(acp, choix = "ind",  cex = 0.8)
+```
+
+
+
+#### Cartographie des résultats de l'ACP
+
+On fait une jointure
+
+```{r}
+# Chargement du fonds de carte
+map<-readRDS("data/EXPLO/map2004.RDS")
+map<-map[,c("gou_code","gou_nom","geometry")]
+# Ajout du code aux résultats de l'ACP sur les individus
+ACPIndComp$gou_code<-rownames(ACPIndComp)
+# Jointure
+mapACP<-merge(map,ACPIndComp,by="gou_code")
+```
+
+
+On cartographie l'axe factoriel n°1
+
+
+
+```{r}
+
+
+# Choix des classes et paliers
+mybreaks<-c(-10,-3,-2,-1,0,1,2,3,10)
+mypal<-brewer.pal(n = 8,name="RdBu")
+
+# Carte des coordonnées des individus sur le 1er axe
+mf_map(x = mapACP, type = "choro",var="CorIndF1",
+       breaks = mybreaks,
+       pal=mypal,
+       leg_title = "Coordonnées", leg_pos="right")
+mf_map(x=mapACP, type="prop", var ="CtrIndF1",
+       col="gray",border="black",inches=0.05,
+       leg_title = "Contributions", leg_pos = "topright")
+mf_layout(title =  "Axe factoriel n°1 : Opposition entre les métropoles littorales et l'intérieur", 
+          credits = "Source : INS",
+          frame=T)
+
+
+```
+
+
+On cartographie l'axe factoriel n°2
+
+```{r}
+
+
+# Choix des classes et paliers
+mybreaks<-c(-10,-3,-2,-1,0,1,2,3,10)
+mypal<-brewer.pal(n = 8,name="RdBu")
+
+# Carte des coordonnées des individus sur le 1er axe
+mf_map(x = mapACP, type = "choro",var="CorIndF2",
+       breaks = mybreaks,
+       pal=mypal,
+       leg_title = "Coordonnées", leg_pos="right")
+mf_map(x=mapACP, type="prop", var ="CtrIndF2",
+       col="gray",border="black",inches=0.05,
+       leg_title = "Contributions", leg_pos = "topright")
+mf_layout(title = "Axe factoriel n°2 : Spécificité des zones intérieures du Nord et du Sud", 
+          credits = "Source : INS",
+          frame=T)
+
+
+```
+
+## (4) CLASSIFICATION ASCENDANTE HIERARCHIQUE (CAH)
+
+
+### Réalisation de la CAH
+
+```{r}
+cah<-HCPC(acp,nb.clust = 4)
+tabres<-cah$data.clust
+```
+
+
+### Aide à l'interprétation du profil des classes
+
+```{r}
+catdes(tabres,num.var = 7)
+```
+
+### Visualisation du profils des classes
+
+```{r}
+plot.catdes(catdes(tabres,7,proba = 1),level = 1,barplot = T)
+```
+
+
+### Jointure du fonds de carte et des résultats de la CAH
+
+```{r}
+# Chargement du fonds de carte
+map<-readRDS("data/EXPLO/map2004.RDS")
+map<-map[,c("gou_code","gou_nom","geometry")]
+# Ajout du code aux résultats de l'ACP sur les individus
+tabres$gou_code<-rownames(tabres)
+# Jointure
+mapCAH<-merge(map,tabres,by="gou_code")
+```
+
+### Cartographie des résultats de la CAH
+
+```{r}
+# Ajout de noms aux classes
+mapCAH$classes<-as.factor(mapCAH$clust)
+levels(mapCAH$classes)<- c("1 : Spécifique",
+                           "2 : Défavorisé",
+                           "3 : Favorisé",
+                           "4 : Très favorisé")
+mypal=c("lightgreen","lightyellow","orange","red")
+
+# Carte des coordonnées des individus sur le 1er axe
+mf_map(x = mapCAH, type = "typo",var="classes",
+       leg_title = "Classes", leg_pos="right",
+       pal=mypal)
+mf_layout(title = "Typologie des gouvernorats", 
+          credits = "Source : INS",
+          frame=T)
+```
