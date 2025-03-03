@@ -5,31 +5,7 @@ author: "(c) FR CIST - Université Paris Cité - Université de Sfax"
 format: html
 ---
 
-
-### Institutions et financement
-
-::: {layout="[70,30]"}
-::: {first-column}
-L'école d'été GEOUNIV'R 2024 a été organisée par la [Fédération de Recherche CIST](https://cist.cnrs.fr/) conjointement par  [le départements de géographie de la FLSH de Universié Sfax](https://flshs.rnu.tn/fra/home) et [l'UFR GHES de l'université Paris-Cité](https://u-paris.fr/ghes/). 
-
-
-Le financement principal a été apporté par les crédits de [l'IDEX Innovation Pédagogique de l'Université Paris-Cité](https://u-paris.fr/appel-a-projets-innovation-pedagogique-2024/)
-
-
-Le projet a été réalisé avec le soutien d'enseignants-chercheurs des laboratoires de recherche [Géographie-cités](https://geographie-cites.cnrs.fr/) et [Prodig](https://www.prodig.cnrs.fr/) et d'ingénieurs des unités de service [Riate](https://riate.cnrs.fr/)  [Geoteca](https://geoteca.u-paris.fr/). 
-
- ![](img/logo_geocités.jpg){height=50} ![](img/logo_PRODIG.png){height=50}  ![](img/logo_RIATE.jpg){height=50} ![](img/logo_geoteca.jpg){height=50} 
-:::
-::: {second-column}
-![](img/logo_FLSH.png){width=80} ![](img/logo_GHES.png){width=160}
-
-
-
-![](img/Idex_Fr2030.jpg){width=300}
-
-:::
-:::
-
+![](img/banner_geounivr.jpg){width=1000} 
 
 
 ### Objectif
@@ -43,6 +19,25 @@ L' objectif de cette école d'été était de **former des formateurs** en réun
 :::
 :::
 
+
+### Programme et méthode de travail
+
+
+::: {layout="[50,50]"}
+::: {first-column}
+#### Matin : cours
+Les matinées étaient consacrées à des cours portant sur les différents sujets du programme avec des applications sur des exemples communs.
+![](img/geounivr_cours.jpg){width=400}
+:::
+
+::: {second-column}
+#### Après-midi : ateliers
+Les après-midi étaient consacrées à des ateliers par groupes de 3 à 4 participants travaillant sur un projet à partir de leurs propres jeux de données. 
+![](img/geounivr_ateliers.jpg){width=400}
+
+
+:::
+:::
 
 
 
@@ -62,6 +57,35 @@ L'école d'été GEONUIV'R 2024 s'est tenue à l'hôtel Sentido Bellevue de Sous
 :::
 :::
 
+### Institutions et financement
+
+::: {layout="[70,30]"}
+::: {first-column}
+L'école d'été GEOUNIV'R 2024 a été organisée par la [Fédération de Recherche CIST](https://cist.cnrs.fr/) conjointement par  [le départements de géographie de la FLSH de Universié Sfax](https://flshs.rnu.tn/fra/home) et [l'UFR GHES de l'université Paris-Cité](https://u-paris.fr/ghes/). 
+
+
+Le financement principal a été apporté par les crédits de [l'IDEX Innovation Pédagogique de l'Université Paris-Cité](https://u-paris.fr/appel-a-projets-innovation-pedagogique-2024/)
+
+
+Le projet a été réalisé avec le soutien d'enseignants-chercheurs des laboratoires de recherche [Géographie-cités](https://geographie-cites.cnrs.fr/) et [Prodig](https://www.prodig.cnrs.fr/) et d'ingénieurs des unités de service [Riate](https://riate.cnrs.fr/)  [Geoteca](https://geoteca.u-paris.fr/). 
+
+
+![](img/logo_geocites.jpg){height=50} 
+![](img/logo_PRODIG.png){height=50}  ![](img/logo_RIATE.jpg){height=50} ![](img/logo_geoteca.jpg){height=50} 
+:::
+::: {second-column}
+![](img/logo_FLSH.png){width=80} ![](img/logo_GHES.png){width=160}
+
+
+
+![](img/Idex_Fr2030.jpg){width=300}
+
+:::
+:::
+
+
+
+
 
 ### Comité d'organisation
 
@@ -78,7 +102,7 @@ L'école d'été GEONUIV'R 2024 a été organisé conjointement par la FALSH de 
 
 
 
-### Participants
+### Liste des participants
 
 
 ::: {layout="[30,70]"}
@@ -95,44 +119,44 @@ L'école d'été a rassemblé 34 participants parmi lesquels 9 enseignants-cherc
 ::: {layout="[50,50]"}
 ::: {first-column}
 #### France
-1.	Baudet-Michel	Sophie	France
-2.	Dahech	Salem	France
-3.	Grasland	Claude	France
-4.	Guérois	Marianne	France
-5.	Lambert	Nicolas	France
-6.	Madelin	Malika	France
-7.	Marveaux	Elina	France
-8.	Plaisant	Brian	France
-9.	Ysebaert	Ronan	France
+1.	Baudet-Michel	Sophie (Géographie-cités)
+2.	Dahech	Salem (PRODIG)
+3.	Grasland	Claude (CIST & Géographie-cités)
+4.	Guérois	Marianne (Géographie-cités)
+5.	Lambert	Nicolas (RIATE)
+6.	Madelin	Malika (PRODIG)
+7.	Marveaux	Elina (CIST)
+8.	Plaisant	Brian (Geoteca)
+9.	Ysebaert	Ronan (RIATE)
 :::
 
 ::: {second-column}
 #### Tunisie
-10.	Bouaziz	Riadh	Tunisie
-11.	Charfi	Sami	Tunisie
-12.	Feki	Mohamed	Tunisie
-13.	Yengui	Taher	Tunisie
-14.	Kacem	Abir	Tunisie
-15.	Souissi	Mohamed	Tunisie
-16.	Hammami	Zayed	Tunisie
-17.	Nsiri	Hsan	Tunisie
-18.	Jarraya	Mounir	Tunisie
-19.	Ghribi	Marwen	Tunisie
-20.	Rebei	Hédi	Tunisie
-21.	Zenati	Hedi	Tunisie
-22.	Hamza	Dalel	Tunisie
-23.	Barrani	Yassine	Tunisie
-24.	Ben Fguira	Sami	Tunisie
-25.	Hamila	Hajer	Tunisie
-26.	Heni	Sabeh	Tunisie
-27.	Madani	Wassim	Tunisie
-28.	Saadaoui	Khaoula	Tunisie
-29.	Soudeni	Sghaira	Tunisie
-30.	Euchi	Hamdi	Tunisie
-31.	Ben Romdhan	Safa	Tunisie
-32.	Nasrallah	Wafa	Tunisie
-33.	Abdelkhalak	Abderrahmen	Tunisie
-34.	Chkir Ben Jmâa	Najiba	Tunisie
+10.	Bouaziz	Riadh
+11.	Charfi	Sami
+12.	Feki	Mohamed
+13.	Yengui	Taher
+14.	Kacem	Abir
+15.	Souissi	Mohamed
+16.	Hammami	Zayed
+17.	Nsiri	Hsan
+18.	Jarraya	Mounir
+19.	Ghribi	Marwen
+20.	Rebei	Hédi
+21.	Zenati	Hedi
+22.	Hamza	Dalel
+23.	Barrani	Yassine
+24.	Ben Fguira	Sami
+25.	Hamila	Hajer
+26.	Heni	Sabeh
+27.	Madani	Wassime
+28.	Saadaoui	Khaoula
+29.	Soudeni	Sghaira
+30.	Euchi	Hamdi
+31.	Ben Romdhan	Safa
+32.	Nasrallah	Wafa
+33.	Abdelkhalak	Abderrahmen
+34.	Chkir Ben Jmâa	Najiba
 :::
 :::
 
