@@ -121,7 +121,7 @@ del <- del[,c("del_code","del_nom_fr","del_nom_ar","popto_2014")]
 
 **Fond de carte et population 2004 des secteurs (source : INS)**
 ```{r}
-secteurs <- st_read("data/SPA/SPA2/secteurs.gpkg", quiet=TRUE)
+secteurs <- st_read("data/SPA2/secteurs.gpkg", quiet=TRUE)
 ```
 
 
@@ -130,7 +130,7 @@ secteurs <- st_read("data/SPA/SPA2/secteurs.gpkg", quiet=TRUE)
 Le fichier contient les 10 universités extraites de la base OSM (à partir de la catégorie *amenity=university*), cette liste ayant été vérifiée à partir de [Wikipedia](https://fr.wikipedia.org/wiki/Liste_des_universit%C3%A9s_en_Tunisie) (consulté le 3 mai 2024). La localisation d'une université dans chaque ville est associée au point correspondant à une des entrées du site principal (à consolider !).
 
 ```{r}
-univ <- st_read(dsn = "data/SPA/SPA2/univOSM.gpkg", quiet=TRUE)
+univ <- st_read(dsn = "data/SPA2/univOSM.gpkg", quiet=TRUE)
 ```
 
 \
@@ -796,7 +796,7 @@ mf_credits("Source : © OpenStreetMap 2024, INS")
 
 Pour récupérer directement le fichier **del2** en cas de problème de connexion avec OSRM...
 ```{r}
-#del2 <- st_read("data/SPA/SPA2/del2.gpkg")
+#del2 <- st_read("data/SPA2/del2.gpkg")
 ```
 
 

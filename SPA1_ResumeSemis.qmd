@@ -229,7 +229,7 @@ contour des agglomérations.
 
 ```{r, eval=FALSE,message=FALSE}
 # importation du fichier geopackage
-vilsurf <- st_read(dsn = "data/SPA/SPA1/AFRICAPTUN.gpkg", quiet=TRUE)
+vilsurf <- st_read(dsn = "data/SPA1/AFRICAPTUN.gpkg", quiet=TRUE)
 # affichage des 2 premières agglomérations
 head(vilsurf,2)
 ```
@@ -1023,13 +1023,13 @@ matchs joués gagnés, perdus ou nuls. On trouve enfin les buts marqués
 
 ```{r}
 # Championnat de 1ere division 1955-2015
-champ1 <- read.table("data/SPA/SPA1//champ1.csv", 
+champ1 <- read.table("data/SPA1/champ1.csv", 
                      header=T,
                      sep = ";")
 head(champ1,14)
 
 # La liste des clubs de D1 et de D2
-clubs <- read.table("data/SPA/SPA1/clubs.csv", 
+clubs <- read.table("data/SPA1/clubs.csv", 
                      header=T,
                      sep = ";")
 kable(head(clubs,10))
@@ -1038,7 +1038,7 @@ kable(head(clubs,10))
 
 **Les données transformées en fichier `sf` pour l'exercice**
 ```{r, message=FALSE}
-champ1 <- st_read("data/SPA/SPA1/champ1.gpkg")
+champ1 <- st_read("data/SPA1/champ1.gpkg")
 ```
 
 ### Pré-traitements (création d'une nouvelle variable *Période*, identification des clubs de ligue 1 à chaque période)

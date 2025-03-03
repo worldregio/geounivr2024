@@ -102,7 +102,7 @@ reg <- st_read("data/SPA/tun_admin.gpkg", layer = "region", quiet = TRUE)
 Les données *Tirs au but* regroupent les localisations des tirs ayant eu lieu lors des matchs des 5 plus grandes ligues européennes de football (Angleterre, Espagne, Allemagne, Italie, France). Le fichier initial, disponible [ici](https://github.com/hadjdeh/football-data-analysis/tree/main/Shots_and_goals_map){target="_blank"}. Chaque tir est aussi décrit par de multiples variables (en tout, le fichier comprend 265 colonnes), sur le type de tir, but ou pas, sur le joueur, l'heure, l'action d'avant, etc.). Le fichier décrit la saison 2023-24 (plus précisément du 11/8/23 au 17/3/24). Pour les *aficionados*, vous trouverez au-delà des données, des ressources, des idées de traitement, etc. sur ce compte de Mikhail Borodasto (github : [hadjdeh](https://github.com/hadjdeh){target="_blank"}).
 
 ```{r}
-tirsfoot <- read.csv("data/SPA/SPA3/event_data_top5_leagues_18032024_(shots).csv")
+tirsfoot <- read.csv("data/SPA3/event_data_top5_leagues_18032024_(shots).csv")
 dim(tirsfoot)
 
 head(tirsfoot[c(100,3000,10000,20000,30000),
@@ -115,16 +115,16 @@ head(tirsfoot[c(100,3000,10000,20000,30000),
 **Données climatiques de la Tunisie**  
 Déjà vu dans [STA3 : Statistique Multivariée]{style="color:#5396B0;"}
 ```{r}
-clim <-read.csv2("data/SPA/SPA3/stations_Tunisie.csv")
+clim <-read.csv2("data/SPA3/stations_Tunisie.csv")
 ```
 
 **Données OSM sur Sousse**  
 Déjà vu dans [SPA1 : Résumé d'un semis de points]{style="color:#5396B0;"}
 ```{r}
 #| message: false
-cafes <- st_read("data/SPA/SPA3/cafes_sousse.gpkg", quiet = TRUE)
-secteurs <- st_read("data/SPA/SPA3/sousse_centre.gpkg", quiet = TRUE)
-mer <- st_read("data/SPA/SPA3/sousse_mer.gpkg", quiet = TRUE)
+cafes <- st_read("data/SPA3/cafes_sousse.gpkg", quiet = TRUE)
+secteurs <- st_read("data/SPA3/sousse_centre.gpkg", quiet = TRUE)
+mer <- st_read("data/SPA3/sousse_mer.gpkg", quiet = TRUE)
 ```
 
 <br>
