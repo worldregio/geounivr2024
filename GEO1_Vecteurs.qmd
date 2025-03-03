@@ -68,6 +68,13 @@ install.packages(c('readxl', 'sf', 'dplyr', 'units', 'rmapshaper', 'mapsf'))
 
 <br>
 
+::: {.callout-tip}
+## Télécharger le jeux de données
+-  [tun](https://github.com/worldregio/geounivr2024/raw/refs/heads/main/datazip/tun.zip)
+:::
+
+
+
 # Les formats vectoriels - *un retour rapide*
 
 Les données spatiales vectorielles correspondent à une géométrie qui
@@ -133,7 +140,7 @@ shapefile ou GéoPackage
 :::
 
 ::: {second-column}
-Le package `sf` [@pebesma2023a], publié en 2016 par Edzer Pebesma permet
+Le package `sf` [@pebesma2023spatial], publié en 2016 par Edzer Pebesma permet
 l’import, l’export, la manipulation et l’affichage de données spatiales
 vectorielles. Pour cela `sf` s’appuie sur une série de bibliothèques
 spatiales : GDAL (GDAL/OGR contributors, 2022), PROJ (PROJ contributors,
@@ -234,7 +241,7 @@ Pour l'exercice nous allons construire un GeoPackage de projet nommé
 #| eval: false
 
 st_write(obj = del, 
-         dsn = "data/mar1Vector.gpkg", 
+         dsn = "data/tun/mar1Vector.gpkg", 
          layer = "delegation")
 ```
 
@@ -252,7 +259,7 @@ fichier `delete_dsn = TRUE`.
 #| eval: false
 
 st_write(obj = del, 
-         dsn = "data/mar1Vector.gpkg", 
+         dsn = "data/tun/mar1Vector.gpkg", 
          layer = "delegation", 
          delete_layer = TRUE)
 ```

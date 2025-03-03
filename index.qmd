@@ -18,7 +18,7 @@ Le financement principal a été apporté par les crédits de [l'IDEX Innovation
 
 Le projet a été réalisé avec le soutien d'enseignants-chercheurs des laboratoires de recherche [Géographie-cités](https://geographie-cites.cnrs.fr/) et [Prodig](https://www.prodig.cnrs.fr/) et d'ingénieurs des unités de service [Riate](https://riate.cnrs.fr/)  [Geoteca](https://geoteca.u-paris.fr/). 
 
-![](img/logo_cist.png){height=80}  ![](img/logo_geocités.jpg){height=50} ![](img/logo_PRODIG.png){height=50}  ![](img/logo_RIATE.jpg){height=50} ![](img/logo_geoteca.jpg){height=50} 
+ ![](img/logo_geocités.jpg){height=50} ![](img/logo_PRODIG.png){height=50}  ![](img/logo_RIATE.jpg){height=50} ![](img/logo_geoteca.jpg){height=50} 
 :::
 ::: {second-column}
 ![](img/logo_FLSH.png){width=80} ![](img/logo_GHES.png){width=160}

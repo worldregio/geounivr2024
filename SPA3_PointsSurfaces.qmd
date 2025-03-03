@@ -91,6 +91,13 @@ library(cartography)
 ### Importation des bases de données
 
 
+::: {.callout-tip}
+## Télécharger les jeux de données
+-  [SPA](https://github.com/worldregio/geounivr2024/raw/refs/heads/main/datazip/SPA.zip)
+-  [SPA3](https://github.com/worldregio/geounivr2024/raw/refs/heads/main/datazip/SPA3.zip)
+:::
+
+
 **Fond de carte des délégations, gouvernorats et régions (source: INS & Syfacte/RIATE)**   
 Déjà vu dans de [nombreux modules]{style="color:#5396B0;"}.
 ```{r}

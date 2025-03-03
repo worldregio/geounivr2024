@@ -62,6 +62,10 @@ prenant la forme $Y = a.X+b$ On commencera donc par utiliser un modèle de régr
 
 On utilise le tableau habituel de 21 stations de Tunisie
 
+::: {.callout-tip}
+## Télécharger le jeux de données
+-  [TUN-CLIMAT](https://github.com/worldregio/geounivr2024/raw/refs/heads/main/datazip/TUN-CLIMAT.zip)
+:::
 
 ## 1.1 Importation des données
 

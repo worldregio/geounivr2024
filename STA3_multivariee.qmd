@@ -61,13 +61,16 @@ opts_knit$set(width=75)
 
 
 
-On reprend toutes les étapes précédentes en un seul programme.
-
 
 ## (A) PREPARATION DES DONNEES
 
-- **Note** : on peut passer cette partie et démarrer si on le souhaite directement à la partie suivante dès lors que les fichiers ont été créés dans le dossier EXPLO.
+On peut préparer les données à partir du dossier **RP-Tunisie**. Mais on peut aussipasser cette partie et démarrer si on le souhaite directement à la partie suivante dès lors que les fichiers ont été créés dans le dossier **EXPLO**.
 
+::: {.callout-tip}
+## Télécharger les jeux de données
+-  [RP-Tunisie](https://github.com/worldregio/geounivr2024/raw/refs/heads/main/datazip/RP-Tunisie.zip)
+-  [EXPLO](https://github.com/worldregio/geounivr2024/raw/refs/heads/main/datazip/EXPLO.zip)
+:::
 
 ### Importe les données statistiques
 

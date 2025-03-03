@@ -53,6 +53,11 @@ A chaque étape, on peut comparer les résultats obtenus en se servant de progra
 
 ## (1) DONNEES STATISTIQUES
 
+::: {.callout-tip}
+## Télécharger le jeu de données
+-  [RP_Tunisie](https://github.com/worldregio/geounivr2024/raw/refs/heads/main/datazip/RP_Tunisie.zip)
+:::
+
 ### Acquisition
 
 -   **Consigne** : Après avoir chargé le tableau excel tun_del_2004.xls, sélectionnez les délégations du gouvernorat de Sfax et construisez un tableau décrivant le nombre ménages et leur équipement en ordinateur en 2004 et 2014 

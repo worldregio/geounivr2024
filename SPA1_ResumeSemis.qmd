@@ -124,6 +124,13 @@ library(kableExtra)
 
 ### Importation des bases de données
 
+
+::: {.callout-tip}
+## Télécharger les jeux de données
+-  [SPA](https://github.com/worldregio/geounivr2024/raw/refs/heads/main/datazip/SPA.zip)
+-  [SPA1](https://github.com/worldregio/geounivr2024/raw/refs/heads/main/datazip/SPA1.zip)
+:::
+
 **Fond de carte des délégations, gouvernorats et régions (source : INS &
 Syfacte/Riate)**
 

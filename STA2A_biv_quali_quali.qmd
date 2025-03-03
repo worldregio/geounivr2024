@@ -42,7 +42,12 @@ library(questionr)
 
 # PREPARATION DES DONNEES
 
-Nous allons importer un fichier de données portant sur les revenus de 17000 ménages tunisiens en 2021. Il est tiré de l'enquête consommation et revenu de l'INS que l'on peut télécharger librement en [cliquant ici](https://www.ins.tn/enquetes/enquete-nationale-sur-le-budget-la-consommation-et-le-niveau-de-vie-des-menages-2021)
+Nous allons importer un fichier de données portant sur les revenus de 17000 ménages tunisiens en 2021. Il est tiré de l'enquête consommation et revenu de l'INS dont on trouvera la description détaillée en  [cliquant ici](https://www.ins.tn/enquetes/enquete-nationale-sur-le-budget-la-consommation-et-le-niveau-de-vie-des-menages-2021)
+
+::: {.callout-tip}
+## Télécharger le jeux de données
+-  [ENQ-TUN-2021](https://github.com/worldregio/geounivr2024/raw/refs/heads/main/datazip/ENQ-TUN-2021.zip)
+:::
 
 ## Importation des données
 

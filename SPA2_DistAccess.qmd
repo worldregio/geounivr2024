@@ -85,6 +85,13 @@ library(kableExtra)
 
 ## Les données utilisées dans ce module
 
+
+::: {.callout-tip}
+## Télécharger les jeux de données
+-  [SPA](https://github.com/worldregio/geounivr2024/raw/refs/heads/main/datazip/SPA.zip)
+-  [SPA2](https://github.com/worldregio/geounivr2024/raw/refs/heads/main/datazip/SPA2.zip)
+:::
+
 ### Les villes tunisiennes et les découpages administratifs tunisiens (cf SPA1)
 
 ::: {.callout-note collapse="true"}
@@ -92,7 +99,7 @@ library(kableExtra)
 
 **Les villes tunisiennes (source : Africapolis)**
 ```{r}
-vil <- st_read(dsn = "data/SPA//vil.gpkg", quiet=TRUE)
+vil <- st_read(dsn = "data/SPA/vil.gpkg", quiet=TRUE)
 ```
 
 **Fond de carte des délégations, gouvernorats et régions (source : INS & Syfacte/Riate)**

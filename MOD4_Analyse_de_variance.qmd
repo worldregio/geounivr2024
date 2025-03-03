@@ -49,10 +49,11 @@ X1, X2, X3...
 
 # 1. Données
 
-Nous allons importer un fichier de données portant sur les revenus de
-17 000 ménages tunisiens en 2021. Il est tiré de l'Enquête Nationale sur
-le Budget et la Consommation des Ménages réalisée par l'INS et publiée
-sur son site.
+
+
+Nous allons importer un fichier de données portant sur les revenus de 17000 ménages tunisiens en 2021. Il est tiré de l'enquête consommation et revenu de l'INS dont on trouvera la description détaillée en  [cliquant ici](https://www.ins.tn/enquetes/enquete-nationale-sur-le-budget-la-consommation-et-le-niveau-de-vie-des-menages-2021)
+
+
 
 ::: {.callout-note collapse="true" title="Enquête Nationale sur le Budget et la Consommation des Ménages de Tunisie en 2021"}
 ![image](img/ins_conso.png)
@@ -63,6 +64,13 @@ Les fichiers obtenus sont au format stata avec l'extension .dta. Il est
 toutefois possible de les importer dans R avec le package `haven` puis
 de recoder les variables sous la forme de factors à l'aide du package
 `labelled`.
+:::
+
+
+
+::: {.callout-tip}
+## Télécharger le jeux de données mis en forme pour R
+-  [ENQ-TUN-2021](https://github.com/worldregio/geounivr2024/raw/refs/heads/main/datazip/ENQ-TUN-2021.zip)
 :::
 
 ## Importation des données

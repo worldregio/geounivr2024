@@ -80,6 +80,11 @@ transformant les variables X et Y de façon logarithmique.
 
 # 1. PREPARATION DES DONNEES
 
+::: {.callout-tip}
+## Télécharger le jeu de données
+-  [DEV-AFRIC-2018](https://github.com/worldregio/geounivr2024/raw/refs/heads/main/datazip/DEV-AFRIC-2018.zip)
+:::
+
 ## 1.1 Importation des données
 
 On utilise un tableau de données extrait du [Human Development Report

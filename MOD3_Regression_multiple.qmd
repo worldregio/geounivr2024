@@ -53,6 +53,11 @@ library(corrplot) # Pour visualiser une matrice de corrélation facile à lire
 
 Nous allons reprendre l'exemple des données climatiques sur la Tunisie.
 
+::: {.callout-tip}
+## Télécharger le jeux de données
+-  [TUN-CLIMAT](https://github.com/worldregio/geounivr2024/raw/refs/heads/main/datazip/TUN-CLIMAT.zip)
+:::
+
 ## Importation des données
 
 ```{r, echo=FALSE}

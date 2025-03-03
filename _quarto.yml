@@ -7,7 +7,8 @@ website:
   sidebar:
     style: "docked"
     search: true
-    collapse-level: 1
+    collapse-level: 2
+    logo: img/logo_cist_small.jpg
     contents:
       - href: index.qmd
         text: "A propos"
@@ -66,6 +67,8 @@ website:
     left: Copyright 2025, FR CIST
 format:
   html:
+    grid:
+      sidebar-width: 300px
     theme: 
       light: minty    
       dark: solar
