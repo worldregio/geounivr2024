@@ -23,7 +23,7 @@ website:
       - section: "CARTO-GEOMATIQUE"
         contents:
           - href: GEO1_vecteurs.qmd
-            text: "Carto. vecteurs " 
+            text: "Carto. vecteurs" 
           - href: GEO2_rasters.html
             text: "Carto. rasters"
           - href: https://neocarto.github.io/geounivr2024/VEN1_geoviz_intro/docs/index.html
@@ -37,7 +37,7 @@ website:
           - href: STA2B_biv_quali_quanti.qmd
             text: "Bivariée : Y quanti. et X quali"             
           - href: STA2C_biv_quanti_quanti.qmd
-            text: "Bivariée : X quanti. et Y quali"  
+            text: "Bivariée : X et Y quanti"  
           - href: STA3_multivariee.qmd
             text: "Multivariée : ACP et CAH"   
       - section: "MODELISATION"
