@@ -32,7 +32,7 @@ En amont de la semaine de formation, une initiation à l'usage du logiciel R et 
 
 ::: {.callout-tip}
 ## Télécharger le module d'initiation à R et R studio
--  [Initiation à R](https://github.com/worldregio/geounivr2024/raw/refs/heads/main/datazip/Formation_R_Sfax.zip)
+-  [Initiation à R](https://github.com/worldregio/geounivr2024/raw/refs/heads/main/datazip/Formations_R_Sfax.zip)
 Ce dossier rédigé par Taher Yengui comporte un document expliquant les bases des langages R et R markdown ainsi qu'un jeu de données d'exemple pour de premières applications. 
 :::
 
