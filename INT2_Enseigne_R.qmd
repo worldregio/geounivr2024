@@ -17,6 +17,7 @@ format:
     crossrefs-hover: false
     css: custom.css
     theme: [yeti, style.scss]
+    code-fold: true
 execute:
   warning: false
   message: false 
@@ -38,8 +39,7 @@ On limite volontairement au minimum le nombre de packages R utilisés, en se lim
 
 On propose de réaliser une analyse de la distribution du taux d'équipement en ordinateur dans les délégations d'un gouvernorat en 2004 et 2014. Le programme est rédigé de telle sorte qu'on puisse facilement passer d'un gouvernorat à l'autre.
 
-```{r, echo=F}
-knitr::opts_chunk$set(echo = FALSE,  warning = FALSE, message = FALSE)
+```{r}
 
 # Importe les données
 library(readxl)
