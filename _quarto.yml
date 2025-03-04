@@ -22,7 +22,7 @@ website:
             text: "Importer des données dans R"  
       - section: "CARTO-GEOMATIQUE"
         contents:
-          - href: GEO1_vecteurs.qmd
+          - href: GEO1_carto_vecteurs.qmd
             text: "Carto. vecteurs" 
           - href: GEO2_rasters.html
             text: "Carto. rasters"
