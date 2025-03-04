@@ -20,8 +20,32 @@ L' objectif de cette école d'été était de **former des formateurs** en réun
 :::
 
 
-### Programme et méthode de travail
+### Prérequis
 
+::: {layout="[70,30]"}
+::: {first-column}
+#### Prérequis : Initiation à R
+
+En amont de la semaine de formation, une initiation à l'usage du logiciel R et de son environnement R-Studio avait été dispensée par **Taher Yengui**, assistant à l'Université de Sfax. Le suivi de cette initiation était une condition d'inscription à la formation.
+
+
+
+::: {.callout-tip}
+## Télécharger le module d'initiation à R et R studio
+-  [Initiation à R](https://github.com/worldregio/geounivr2024/raw/refs/heads/main/datazip/Formation_R_Sfax.zip)
+Ce dossier rédigé par Taher Yengui comporte un document expliquant les bases des langages R et R markdown ainsi qu'un jeu de données d'exemple pour de premières applications. 
+:::
+
+:::
+
+::: {second-column}
+
+![](img/Taher.jpg){width=200}
+:::
+
+:::
+
+### Théorie et pratique
 
 ::: {layout="[50,50]"}
 ::: {first-column}
@@ -61,7 +85,7 @@ L'école d'été GEONUIV'R 2024 s'est tenue à l'hôtel Sentido Bellevue de Sous
 
 ::: {layout="[70,30]"}
 ::: {first-column}
-L'école d'été GEOUNIV'R 2024 a été organisée par la [Fédération de Recherche CIST](https://cist.cnrs.fr/) conjointement par  [le départements de géographie de la FLSH de Universié Sfax](https://flshs.rnu.tn/fra/home) et [l'UFR GHES de l'université Paris-Cité](https://u-paris.fr/ghes/). 
+L'école d'été GEOUNIV'R 2024 a été organisée par la [Fédération de Recherche CIST](https://cist.cnrs.fr/) conjointement par  [le département de géographie de la FLSH de Universié Sfax](https://flshs.rnu.tn/fra/home) et [l'UFR GHES de l'université Paris-Cité](https://u-paris.fr/ghes/). 
 
 
 Le financement principal a été apporté par les crédits de [l'IDEX Innovation Pédagogique de l'Université Paris-Cité](https://u-paris.fr/appel-a-projets-innovation-pedagogique-2024/)
