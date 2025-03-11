@@ -18,14 +18,20 @@ website:
             text: "Pourquoi R ?"  
           - href: INT2_Enseigne_R.qmd
             text: "Enseigner avec R"
+      - section: "DONNEES"
+        contents:            
           - href: INT3_Importe_R.qmd
             text: "Importer des données dans R"  
-      - section: "CARTO-GEOMATIQUE"
-        contents:
           - href: GEO1_carto_vecteurs.qmd
-            text: "Carto. vecteurs" 
+            text: "Données spatiales : vecteurs" 
           - href: GEO2_rasters.html
-            text: "Carto. rasters"
+            text: "Données spatiales : rasters"
+      - section: "CARTOGRAPHIE"
+        contents:
+          - href: CARTO1_intro.qmd
+            text: "Carto. thématique (intro)"  
+          - href: CARTO2_thematique.qmd
+            text: "Carto. thématique" 
           - href: https://neocarto.github.io/geounivr2024/VEN1_geoviz_intro/docs/index.html
             text: "Carto. dynamique"            
       - section: "STATISTIQUES"
