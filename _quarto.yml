@@ -33,7 +33,9 @@ website:
           - href: CARTO2_thematique.qmd
             text: "Carto. thématique" 
           - href: https://neocarto.github.io/geounivr2024/VEN1_geoviz_intro/docs/index.html
-            text: "Carto. dynamique"            
+            text: "Carto. dynamique (intro)"   
+          - href: https://neocarto.github.io/geounivr2024/VEN1_geoviz_TP/docs/index.html
+            text: "Carto. dynamique"              
       - section: "STATISTIQUES"
         contents:
           - href: STA1_Univariee.qmd
